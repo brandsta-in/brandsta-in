@@ -1,0 +1,46 @@
+/* app/assets/css/main.css */
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --color-brand-obsidian: #02050e;
+  --color-brand-surface: #060b19;
+  --color-brand-blue: #0048ff;
+  --color-brand-electric: #1e6bff;
+  --color-brand-ice: #7cb4ff;
+  --color-brand-fire: #ff3b30;
+
+  --breakpoint-2xs: 22.5rem;
+  --breakpoint-xs: 30rem;
+  --breakpoint-3xl: 120rem;
+}
+
+@layer base {
+  html,
+  body {
+    background-color: #02050e;
+    color: #ffffff;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background-color: #0048ff;
+    color: #ffffff;
+  }
+}
+
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1), transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
