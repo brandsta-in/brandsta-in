@@ -31,6 +31,8 @@ export default defineNuxtConfig({
     '@vueuse/motion/nuxt',
     '@nuxtjs/sitemap',
     '@nuxtjs/robots',
+    '@vercel/speed-insights/nuxt',
+    '@vercel/analytics/nuxt'
   ],
 
   // 4. Typography Owned Exclusively by @nuxt/fonts (Zero Duplicate Links)
