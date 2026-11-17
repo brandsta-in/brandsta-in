@@ -51,7 +51,13 @@ function tick() {
   }
 
   if (ringEl.value) {
-    const scale = isPressed.value ? 0.82 : isHoveringInteractive.value ? 1.65 : 1
+    const scale = isHoveringInteractive.value
+      ? isPressed.value
+        ? 1.46
+        : 1.68
+      : isPressed.value
+        ? 0.86
+        : 1
     ringEl.value.style.transform = `translate3d(${ringX}px, ${ringY}px, 0) scale(${scale})`
   }
 
@@ -106,9 +112,7 @@ function onVisibilityChange() {
 
 onMounted(() => {
   const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-  if (!finePointer || reducedMotion) return
+  if (!finePointer) return
 
   isEnabled.value = true
   window.addEventListener('pointermove', onPointerMove, { passive: true })
@@ -138,7 +142,10 @@ onUnmounted(() => {
     <div ref="ringEl" class="cursor-ring">
       <div
         class="cursor-ring-inner"
-        :class="isHoveringInteractive ? 'is-active' : ''"
+        :class="[
+          isHoveringInteractive ? 'is-active' : '',
+          isPressed ? 'is-pressed' : '',
+        ]"
       />
     </div>
     <div ref="dotEl" class="cursor-dot">
@@ -158,7 +165,7 @@ onUnmounted(() => {
 }
 
 .cursor-ring {
-  transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .cursor-ring-inner {
@@ -167,14 +174,33 @@ onUnmounted(() => {
   margin-left: -18px;
   margin-top: -18px;
   border-radius: 9999px;
-  border: 1px solid rgba(30, 107, 255, 0.45);
-  background: radial-gradient(circle, rgba(0, 72, 255, 0.14) 0%, rgba(0, 72, 255, 0) 72%);
-  transition: border-color 0.25s ease, background-color 0.25s ease;
+  border: 1.75px solid color-mix(in srgb, var(--color-brand-electric) 72%, transparent);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--color-brand-blue) 14%, transparent) 0%,
+    transparent 72%
+  );
+  transition:
+    border-width 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.22s ease,
+    background 0.22s ease,
+    box-shadow 0.22s ease;
 }
 
 .cursor-ring-inner.is-active {
-  border-color: rgba(124, 180, 255, 0.85);
-  background: radial-gradient(circle, rgba(0, 72, 255, 0.28) 0%, rgba(0, 72, 255, 0) 75%);
+  border-width: 1.95px;
+  border-color: color-mix(in srgb, var(--color-brand-ice) 92%, transparent);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--color-brand-blue) 24%, transparent) 0%,
+    transparent 75%
+  );
+}
+
+.cursor-ring-inner.is-pressed {
+  border-width: 3.1px;
+  border-color: var(--color-brand-frost);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--color-brand-electric) 55%, transparent);
 }
 
 .cursor-dot-inner {
@@ -184,6 +210,6 @@ onUnmounted(() => {
   margin-top: -3px;
   border-radius: 9999px;
   background-color: #ffffff;
-  box-shadow: 0 0 12px rgba(0, 72, 255, 0.95);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-brand-blue) 95%, transparent);
 }
 </style>

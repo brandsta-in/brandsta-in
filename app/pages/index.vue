@@ -1,179 +1,526 @@
 <!-- app/pages/index.vue -->
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useBrandstaSeo } from '~/composables/useBrandstaSeo'
-import SignalFieldSvg from '~/components/SignalFieldSvg.vue'
+import { useConvergentScroll, type ConvergentTelemetry } from '~/composables/useConvergentScroll'
+import { HERO_CHOREOGRAPHY } from '~/data/heroChoreography'
+import ConvergentSignalEngine from '~/components/ConvergentSignalEngine.vue'
+import FormationSlider from '~/components/FormationSlider.vue'
 
 useBrandstaSeo({
   title: 'Brandsta | Something is forming.',
   description: 'Something is forming. Every beginning carries a signal. Follow its journey.',
 })
 
-const isWordHovered = ref(false)
-const signalRef = ref<InstanceType<typeof SignalFieldSvg> | null>(null)
+const {
+  mountScrollEngine,
+  onScrollTick,
+  scrollToFormation,
+  setFormingHovered,
+  triggerFormingPulse,
+} = useConvergentScroll()
 
-function amplifySignal() {
-  signalRef.value?.triggerBurst()
+const PREVIEW_CHARS = 'PREVIEW'.split('')
+const SOMETHING_CHARS = 'Something'.split('')
+const IS_CHARS = 'is'.split('')
+const FORMING_CHARS = 'forming.'.split('')
+const LEAD_LINE_1_WORDS = 'Every beginning carries a signal.'.split(' ')
+const LEAD_LINE_2_WORDS = 'Follow its journey.'.split(' ')
+
+const FORMING_FLASH_DELAY_MS =
+  HERO_CHOREOGRAPHY.formingStartMs +
+  (FORMING_CHARS.length - 1) * HERO_CHOREOGRAPHY.formingCharStaggerMs -
+  40
+
+const heroStackEl = ref<HTMLDivElement | null>(null)
+const scrollCueEl = ref<HTMLButtonElement | null>(null)
+const isFormingActive = ref(false)
+
+let cleanupScroll: (() => void) | null = null
+let unsubscribeHeroTick: (() => void) | null = null
+
+function onFormingEnter() {
+  isFormingActive.value = true
+  setFormingHovered(true)
 }
+
+function onFormingLeave() {
+  isFormingActive.value = false
+  setFormingHovered(false)
+}
+
+function onFormingClick() {
+  triggerFormingPulse()
+}
+
+function updateHeroScrollParallax(tel: ConvergentTelemetry) {
+  const p = tel.heroProgress
+
+  if (heroStackEl.value) {
+    const liftY = -p * 26
+    const fade = Math.max(0, 1 - Math.max(0, (p - 0.16) / 0.62))
+    heroStackEl.value.style.transform = `translate3d(0, ${liftY.toFixed(1)}px, 0)`
+    heroStackEl.value.style.opacity = fade.toFixed(3)
+    heroStackEl.value.style.pointerEvents = p > 0.45 ? 'none' : 'auto'
+  }
+
+  if (scrollCueEl.value) {
+    const cueFade = Math.max(0, 1 - p / 0.28)
+    scrollCueEl.value.style.opacity = cueFade.toFixed(3)
+    scrollCueEl.value.style.pointerEvents = p > 0.25 ? 'none' : 'auto'
+  }
+}
+
+onMounted(() => {
+  cleanupScroll = mountScrollEngine()
+  unsubscribeHeroTick = onScrollTick(updateHeroScrollParallax)
+})
+
+onUnmounted(() => {
+  setFormingHovered(false)
+  if (unsubscribeHeroTick) {
+    unsubscribeHeroTick()
+    unsubscribeHeroTick = null
+  }
+  if (cleanupScroll) {
+    cleanupScroll()
+    cleanupScroll = null
+  }
+})
 </script>
 
 <template>
-  <main
-    class="relative grid h-dvh min-h-[36rem] w-full grid-rows-[auto_1fr_auto] overflow-hidden bg-[#02050e] px-6 pt-7 pb-0 sm:px-12 sm:pt-10 lg:px-20 lg:pt-12 2xl:px-28"
-  >
-    <!-- Subtle Edge Vignette Depth -->
-    <div
-      aria-hidden="true"
-      class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_72%_52%,rgba(0,72,255,0.08)_0%,rgba(2,5,14,0)_62%)]"
-    />
+  <div class="relative min-h-svh w-full bg-brand-void">
+    <!-- Persistent Unified Signal Layer (Black -> Dark Gradient -> 18 Strands -> Star Particles) -->
+    <ConvergentSignalEngine />
 
-    <!-- Row 1: Minimalist PREVIEW Top Bar -->
-    <header
-      v-motion-hero-micro-up
-      class="relative z-10 mx-auto flex w-full max-w-[90rem] items-center justify-between"
-    >
-      <span
-        data-resonant-hover
-        class="inline-flex items-center gap-3 text-[0.72rem] sm:text-xs font-medium uppercase tracking-[0.32em] text-white/78 select-none cursor-default transition-colors duration-300 hover:text-white"
-        @mouseenter="amplifySignal"
+    <main class="relative z-10 w-full overflow-x-clip">
+      <!-- SECTION 1: 3-ROW CSS GRID HERO -->
+      <section
+        aria-labelledby="formation-heading"
+        class="relative grid min-h-svh w-full grid-rows-[0.82fr_auto_1.18fr] items-center gap-y-5 px-5 py-7 sm:gap-y-7 sm:px-12 sm:py-10 lg:px-20 lg:py-12 [@media(max-height:520px)]:grid-rows-[1fr_auto_1fr] [@media(max-height:520px)]:gap-y-2.5 [@media(max-height:520px)]:py-3.5"
       >
-        PREVIEW
-      </span>
+        <!-- Row 1: Top Counter-Weight Track -->
+        <div aria-hidden="true" class="w-full" />
 
-      <!-- Quiet Live Resonance Status Node (Balances Frame Without Scroll Arrow) -->
-      <span
-        aria-hidden="true"
-        class="inline-flex items-center gap-2 text-[0.65rem] uppercase tracking-[0.26em] text-white/40 select-none"
-      >
-        <span class="signal-beacon h-1.5 w-1.5 rounded-full bg-[#0048ff]" />
-      </span>
-    </header>
-
-    <!-- Row 2: Responsive 2-Column Desktop / Stacked Mobile Stage -->
-    <section
-      aria-labelledby="formation-heading"
-      class="relative z-10 mx-auto grid w-full max-w-[90rem] grid-cols-1 items-center gap-4 lg:grid-cols-12 lg:gap-8"
-    >
-      <!-- Left Copy Column -->
-      <div class="flex flex-col items-start justify-center pt-4 sm:pt-6 lg:col-span-6 lg:pt-0">
-        <h1
-          id="formation-heading"
-          v-motion-hero-scale-in
-          class="text-[2.65rem] 2xs:text-[3.1rem] sm:text-[4.25rem] lg:text-[4.75rem] xl:text-[5.5rem] 2xl:text-[6rem] font-bold leading-[1.03] tracking-[-0.035em] text-white"
+        <!-- Row 2: Centered Negative-Space Typography Pocket -->
+        <div
+          ref="heroStackEl"
+          class="relative mx-auto flex w-full max-w-[46rem] flex-col items-center justify-center text-center will-change-transform"
         >
-          <span class="block">Something</span>
-          <span class="block mt-0.5 sm:mt-1">
-            is
+          <!-- Beat 3 (1480ms -> 1948ms): PREVIEW Writes Letter-by-Letter -->
+          <span
+            aria-label="PREVIEW"
+            class="mb-6 sm:mb-8 lg:mb-10 inline-flex items-center text-[0.7rem] sm:text-[0.78rem] font-medium uppercase text-white/84 select-none [@media(max-height:520px)]:mb-2.5 [@media(max-height:520px)]:text-[0.62rem]"
+          >
             <span
-              data-resonant-hover
-              role="button"
-              tabindex="0"
-              aria-label="forming — interact to resonate signal"
-              class="forming-accent relative inline-block text-[#0048ff] cursor-pointer focus:outline-none focus-visible:underline"
-              @mouseenter="isWordHovered = true"
-              @mouseleave="isWordHovered = false"
-              @click="amplifySignal"
-              @keydown.enter.prevent="amplifySignal"
-              @keydown.space.prevent="amplifySignal"
-            >forming.</span>
+              v-for="(ch, pIdx) in PREVIEW_CHARS"
+              :key="`prev-${pIdx}`"
+              aria-hidden="true"
+              class="char-write inline-block mr-[0.44em] last:mr-0"
+              :style="{
+                '--delay': `${HERO_CHOREOGRAPHY.previewStartMs + pIdx * HERO_CHOREOGRAPHY.previewCharStaggerMs}ms`,
+                '--dur': `${HERO_CHOREOGRAPHY.previewCharDurationMs}ms`,
+                '--rise': '8px',
+              }"
+            >{{ ch }}</span>
           </span>
-        </h1>
 
-        <p
-          v-motion-hero-fade-up
-          class="mt-5 sm:mt-7 lg:mt-8 max-w-[26rem] text-[0.98rem] 2xs:text-[1.05rem] sm:text-[1.25rem] xl:text-[1.42rem] font-normal leading-[1.52] tracking-[-0.01em] text-white/82"
-        >
-          <span class="block">Every beginning carries a signal.</span>
-          <span class="block mt-0.5">Follow its journey.</span>
-        </p>
-      </div>
+          <!-- Beat 4 (1920ms -> 3348ms): Something -> is -> forming. (Momentary Glow Burst & Clean Settle) -->
+          <h1
+            id="formation-heading"
+            aria-label="Something is forming."
+            class="text-[2.6rem] 2xs:text-[3.1rem] sm:text-[4.4rem] lg:text-[5.2rem] xl:text-[5.85rem] 2xl:text-[6.35rem] font-bold leading-[1.04] tracking-[-0.035em] text-white select-none [@media(max-height:520px)]:text-[2.3rem]"
+          >
+            <!-- "Something" -->
+            <span aria-hidden="true" class="block">
+              <span
+                v-for="(ch, sIdx) in SOMETHING_CHARS"
+                :key="`some-${sIdx}`"
+                class="char-write inline-block"
+                :style="{
+                  '--delay': `${HERO_CHOREOGRAPHY.somethingStartMs + sIdx * HERO_CHOREOGRAPHY.somethingCharStaggerMs}ms`,
+                  '--dur': `${HERO_CHOREOGRAPHY.somethingCharDurationMs}ms`,
+                  '--rise': '12px',
+                }"
+              >{{ ch }}</span>
+            </span>
 
-      <!-- Right Living Signal Field Column -->
-      <div class="flex items-center justify-center lg:col-span-6">
-        <SignalFieldSvg
-          ref="signalRef"
-          :amplified="isWordHovered"
-        />
-      </div>
-    </section>
+            <!-- "is forming." -->
+            <span aria-hidden="true" class="mt-0.5 sm:mt-1.5 block">
+              <span class="inline-flex mr-[0.22em]">
+                <span
+                  v-for="(ch, iIdx) in IS_CHARS"
+                  :key="`is-${iIdx}`"
+                  class="char-write inline-block"
+                  :style="{
+                    '--delay': `${HERO_CHOREOGRAPHY.isStartMs + iIdx * HERO_CHOREOGRAPHY.isCharStaggerMs}ms`,
+                    '--dur': `${HERO_CHOREOGRAPHY.isCharDurationMs}ms`,
+                    '--rise': '12px',
+                  }"
+                >{{ ch }}</span>
+              </span>
 
-    <!-- Row 3: Bottom Anchor Signal Pin -->
-    <footer
-      aria-hidden="true"
-      class="relative z-10 flex flex-col items-center justify-end pointer-events-none"
-    >
-      <div class="relative flex flex-col items-center">
-        <!-- Glowing Blue Pin Tip -->
-        <span class="pin-node h-2 w-2 rounded-full bg-[#0048ff]" />
-        <!-- Vertical Hairline Filament with Rising Light Packet -->
-        <div class="relative h-10 sm:h-14 w-px overflow-hidden bg-white/25">
-          <span class="pin-stream absolute inset-x-0 bottom-0 h-5 bg-gradient-to-t from-transparent via-[#60a5fa] to-white" />
+              <span
+                data-resonant-hover
+                role="button"
+                tabindex="0"
+                aria-label="forming. — hover or click to resonate neural strands"
+                class="forming-accent relative inline-flex cursor-pointer text-brand-blue focus:outline-none focus-visible:underline"
+                :class="{ 'is-resonating': isFormingActive }"
+                @mouseenter="onFormingEnter"
+                @mouseleave="onFormingLeave"
+                @click="onFormingClick"
+                @keydown.enter.prevent="onFormingClick"
+                @keydown.space.prevent="onFormingClick"
+              >
+                <!-- One-Shot Brief Glow Flash on Write Completion (Settles to 0) -->
+                <span
+                  aria-hidden="true"
+                  class="forming-write-flash pointer-events-none absolute -inset-x-3 -inset-y-1 -z-10 rounded-full"
+                  :style="{ '--flash-delay': `${FORMING_FLASH_DELAY_MS}ms` }"
+                />
+
+                <!-- Subtle Tight Halo (0 Opacity in Idle — Fades In Gently ONLY on Hover) -->
+                <span
+                  aria-hidden="true"
+                  class="forming-hover-halo pointer-events-none absolute -inset-x-2.5 -inset-y-1 -z-10 rounded-full"
+                />
+
+                <span
+                  v-for="(ch, fIdx) in FORMING_CHARS"
+                  :key="`form-${fIdx}`"
+                  class="forming-char-write inline-block"
+                  :style="{
+                    '--delay': `${HERO_CHOREOGRAPHY.formingStartMs + fIdx * HERO_CHOREOGRAPHY.formingCharStaggerMs}ms`,
+                    '--dur': `${HERO_CHOREOGRAPHY.formingCharDurationMs}ms`,
+                  }"
+                >{{ ch }}</span>
+              </span>
+            </span>
+          </h1>
+
+          <!-- Beat 5 (3320ms -> 4152ms): Subtitle Writes Slowly Word-by-Word -->
+          <p
+            aria-label="Every beginning carries a signal. Follow its journey."
+            class="mt-5 sm:mt-7 lg:mt-8 max-w-[26rem] text-[0.96rem] 2xs:text-[1.05rem] sm:text-[1.22rem] xl:text-[1.34rem] font-normal leading-[1.58] tracking-[-0.01em] text-white/84 select-none [@media(max-height:520px)]:mt-2.5 [@media(max-height:520px)]:text-[0.88rem]"
+          >
+            <span aria-hidden="true" class="flex flex-wrap justify-center">
+              <span
+                v-for="(word, w1Idx) in LEAD_LINE_1_WORDS"
+                :key="`l1-${w1Idx}`"
+                class="char-write inline-block mr-[0.28em] last:mr-0"
+                :style="{
+                  '--delay': `${HERO_CHOREOGRAPHY.leadLine1StartMs + w1Idx * HERO_CHOREOGRAPHY.leadLine1WordStaggerMs}ms`,
+                  '--dur': `${HERO_CHOREOGRAPHY.leadWordDurationMs}ms`,
+                  '--rise': '10px',
+                }"
+              >{{ word }}</span>
+            </span>
+
+            <span aria-hidden="true" class="mt-1 flex flex-wrap justify-center">
+              <span
+                v-for="(word, w2Idx) in LEAD_LINE_2_WORDS"
+                :key="`l2-${w2Idx}`"
+                class="char-write inline-block mr-[0.28em] last:mr-0"
+                :style="{
+                  '--delay': `${HERO_CHOREOGRAPHY.leadLine2StartMs + w2Idx * HERO_CHOREOGRAPHY.leadLine2WordStaggerMs}ms`,
+                  '--dur': `${HERO_CHOREOGRAPHY.leadWordDurationMs}ms`,
+                  '--rise': '10px',
+                }"
+              >{{ word }}</span>
+            </span>
+          </p>
         </div>
-      </div>
-    </footer>
-  </main>
+
+        <!-- Row 3: Beat 6 (4120ms -> 4560ms) Parabolic Triple-Crescent SCROLL Indicator -->
+        <div class="flex w-full items-end justify-center self-end">
+          <button
+            ref="scrollCueEl"
+            type="button"
+            data-resonant-hover
+            aria-label="Scroll into the Formation"
+            class="scroll-cue-btn group flex flex-col items-center gap-3 pt-2 pb-1 cursor-pointer select-none focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-electric/60 rounded-md will-change-opacity [@media(max-height:520px)]:gap-1.5 [@media(max-height:520px)]:pb-0"
+            @click="scrollToFormation"
+          >
+            <span
+              class="char-write flex flex-col items-center gap-3 [@media(max-height:520px)]:gap-1.5"
+              :style="{
+                '--delay': `${HERO_CHOREOGRAPHY.scrollCueStartMs}ms`,
+                '--dur': `${HERO_CHOREOGRAPHY.scrollCueDurationMs}ms`,
+                '--rise': '14px',
+              }"
+            >
+              <svg
+                viewBox="0 0 96 68"
+                class="h-[3.4rem] w-[4.8rem] sm:h-[3.95rem] sm:w-[5.6rem] overflow-visible [@media(max-height:520px)]:h-[2.3rem] [@media(max-height:520px)]:w-[3.3rem]"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <defs>
+                  <radialGradient id="scrollCueAura" cx="50%" cy="66%" r="50%">
+                    <stop offset="0%" stop-color="var(--color-brand-electric)" stop-opacity="0.48" />
+                    <stop offset="48%" stop-color="var(--color-brand-blue)" stop-opacity="0.16" />
+                    <stop offset="100%" stop-color="var(--color-brand-obsidian)" stop-opacity="0" />
+                  </radialGradient>
+
+                  <linearGradient id="crescentBellyGrad" x1="0%" y1="50%" x2="100%" y2="50%">
+                    <stop offset="0%" stop-color="var(--color-brand-blue)" stop-opacity="0" />
+                    <stop offset="20%" stop-color="var(--color-brand-electric)" stop-opacity="0.62" />
+                    <stop offset="50%" stop-color="var(--color-brand-frost)" stop-opacity="1" />
+                    <stop offset="80%" stop-color="var(--color-brand-electric)" stop-opacity="0.62" />
+                    <stop offset="100%" stop-color="var(--color-brand-blue)" stop-opacity="0" />
+                  </linearGradient>
+
+                  <radialGradient id="nadirSparkGlow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+                    <stop offset="30%" stop-color="var(--color-brand-ice)" stop-opacity="0.94" />
+                    <stop offset="68%" stop-color="var(--color-brand-blue)" stop-opacity="0.48" />
+                    <stop offset="100%" stop-color="var(--color-brand-blue)" stop-opacity="0" />
+                  </radialGradient>
+                </defs>
+
+                <g class="transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-110 [transform-origin:48px_42px]">
+                  <ellipse cx="48" cy="41" rx="40" ry="25" fill="url(#scrollCueAura)" class="cue-aura" />
+                </g>
+
+                <g class="transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-y-[1.5px]">
+                  <path
+                    d="M 18 7 Q 48 26 78 7 Q 48 23.2 18 7 Z"
+                    fill="url(#crescentBellyGrad)"
+                    class="crescent-wave crescent-wave-1"
+                  />
+                </g>
+
+                <g class="transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-y-[3px]">
+                  <path
+                    d="M 24 23 Q 48 42.5 72 23 Q 48 38.2 24 23 Z"
+                    fill="url(#crescentBellyGrad)"
+                    class="crescent-wave crescent-wave-2"
+                  />
+                </g>
+
+                <g class="transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-y-[4.5px]">
+                  <g class="crescent-wave crescent-wave-3">
+                    <path
+                      d="M 30 39 Q 48 57.5 66 39 Q 48 52.6 30 39 Z"
+                      fill="url(#crescentBellyGrad)"
+                    />
+                    <circle cx="48" cy="47.4" r="9.5" fill="url(#nadirSparkGlow)" />
+                    <circle cx="48" cy="47.4" r="1.65" class="fill-white" />
+                  </g>
+                </g>
+              </svg>
+
+              <span
+                class="pl-[0.44em] text-[0.62rem] sm:text-[0.68rem] font-medium uppercase tracking-[0.44em] text-white/78 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-y-[2px] group-hover:text-white"
+              >
+                SCROLL
+              </span>
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <!-- SECTION 2: FIXED VIEWPORT FORMATION STAGE + SCROLL RUNWAY -->
+      <FormationSlider />
+    </main>
+  </div>
 </template>
 
 <style scoped>
+/* Crisp Letter & Word Write-In (Zero Idle Halo) */
+.char-write {
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: crispWriteIn var(--dur, 250ms) cubic-bezier(0.22, 1, 0.36, 1) var(--delay, 0ms) forwards;
+}
+
+/* "forming." Letter Write with Momentary Glow Flash -> Clean Settle */
+.forming-char-write {
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: formingGlowWrite var(--dur, 340ms) cubic-bezier(0.22, 1, 0.36, 1) var(--delay, 0ms) forwards;
+  transition:
+    color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    text-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Brief 1-Shot Glow Pulse Right as "forming." Completes Writing, Settling to 0 */
+.forming-write-flash {
+  opacity: 0;
+  background: radial-gradient(
+    ellipse 56% 52% at 50% 54%,
+    color-mix(in srgb, var(--color-brand-electric) 26%, transparent) 0%,
+    transparent 72%
+  );
+  will-change: opacity, transform;
+  animation: formingBriefFlash 360ms cubic-bezier(0.22, 1, 0.36, 1) var(--flash-delay, 2960ms) forwards;
+}
+
+/* Hover-Only Halo (Completely Off in Idle; Mild & Restrained When Hovered) */
+.forming-hover-halo {
+  opacity: 0;
+  background: radial-gradient(
+    ellipse 52% 48% at 50% 55%,
+    color-mix(in srgb, var(--color-brand-blue) 14%, transparent) 0%,
+    transparent 70%
+  );
+  transform: scale(0.94);
+  transition:
+    opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .forming-accent {
-  text-shadow: 0 0 34px rgba(0, 72, 255, 0.42);
-  transition: color 0.35s cubic-bezier(0.22, 1, 0.36, 1), transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
 }
 
-.forming-accent:hover,
+.forming-accent.is-resonating {
+  transform: translate3d(0, -1.5px, 0);
+}
+
+.forming-accent.is-resonating .forming-hover-halo {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.forming-accent.is-resonating .forming-char-write {
+  color: var(--color-brand-electric);
+  text-shadow: 0 0 24px color-mix(in srgb, var(--color-brand-electric) 48%, transparent);
+}
+
 .forming-accent:active {
-  color: #2970ff;
-  transform: translate3d(2px, 0, 0);
+  transform: translate3d(0, 0.5px, 0) scale(0.985);
 }
 
-.signal-beacon {
-  box-shadow: 0 0 10px rgba(0, 72, 255, 0.95);
+.cue-aura {
+  will-change: opacity, transform;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cueAuraBreathe 3.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+
+.crescent-wave {
   will-change: transform, opacity;
-  animation: beaconPulse 2.8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
 }
 
-.pin-node {
-  box-shadow: 0 0 12px rgba(0, 72, 255, 0.95);
-  will-change: transform, opacity;
-  animation: beaconPulse 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+.crescent-wave-1 {
+  animation: crescentCascade1 2.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
-.pin-stream {
-  will-change: transform, opacity;
-  animation: streamRise 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+.crescent-wave-2 {
+  animation: crescentCascade2 2.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
-@keyframes beaconPulse {
+.crescent-wave-3 {
+  animation: crescentCascade3 2.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes crispWriteIn {
   0% {
-    opacity: 0.55;
-    transform: scale(0.88);
+    opacity: 0;
+    transform: translate3d(0, var(--rise, 10px), 0);
   }
   100% {
     opacity: 1;
-    transform: scale(1.22);
+    transform: translate3d(0, 0, 0);
   }
 }
 
-@keyframes streamRise {
+@keyframes formingGlowWrite {
   0% {
     opacity: 0;
-    transform: translate3d(0, 24px, 0);
+    color: var(--color-brand-ice);
+    transform: translate3d(0, 12px, 0);
+    text-shadow: 0 0 0 transparent;
   }
-  45% {
-    opacity: 0.95;
+  52% {
+    opacity: 1;
+    color: var(--color-brand-frost);
+    transform: translate3d(0, -1px, 0);
+    text-shadow:
+      0 0 18px color-mix(in srgb, var(--color-brand-ice) 78%, transparent),
+      0 0 34px color-mix(in srgb, var(--color-brand-blue) 62%, transparent);
+  }
+  100% {
+    opacity: 1;
+    color: var(--color-brand-blue);
+    transform: translate3d(0, 0, 0);
+    text-shadow: 0 0 12px color-mix(in srgb, var(--color-brand-blue) 18%, transparent);
+  }
+}
+
+@keyframes formingBriefFlash {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  42% {
+    opacity: 1;
+    transform: scale(1.04);
   }
   100% {
     opacity: 0;
-    transform: translate3d(0, -56px, 0);
+    transform: scale(1);
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .signal-beacon,
-  .pin-node,
-  .pin-stream {
-    animation: none !important;
+@keyframes cueAuraBreathe {
+  0% {
+    opacity: 0.65;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1.08);
   }
 }
+
+@keyframes crescentCascade1 {
+  0%, 100% {
+    opacity: 0.24;
+    transform: translate3d(0, -1.5px, 0);
+  }
+  28% {
+    opacity: 0.72;
+    transform: translate3d(0, 1.5px, 0);
+  }
+  65% {
+    opacity: 0.28;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes crescentCascade2 {
+  0%, 100% {
+    opacity: 0.42;
+    transform: translate3d(0, -1.5px, 0);
+  }
+  44% {
+    opacity: 0.96;
+    transform: translate3d(0, 2px, 0);
+  }
+  78% {
+    opacity: 0.48;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes crescentCascade3 {
+  0%, 100% {
+    opacity: 0.55;
+    transform: translate3d(0, -1px, 0);
+  }
+  60% {
+    opacity: 1;
+    transform: translate3d(0, 2.5px, 0);
+  }
+  88% {
+    opacity: 0.62;
+    transform: translate3d(0, 0.5px, 0);
+  }
+}
+
 </style>

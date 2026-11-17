@@ -18,11 +18,14 @@ export default defineNuxtConfig({
     env: 'production',
   },
 
-  // 2. Tailwind CSS v4 via Vite
+  // 2. Tailwind CSS v4 via Vite + Lenis Pre-Bundling
   vite: {
     plugins: [
       tailwindcss(),
     ],
+    optimizeDeps: {
+      include: ['lenis'],
+    },
   },
 
   // 3. Core Modules
@@ -31,14 +34,11 @@ export default defineNuxtConfig({
     '@vueuse/motion/nuxt',
     '@nuxtjs/sitemap',
     '@nuxtjs/robots',
-    '@vercel/speed-insights/nuxt',
-    '@vercel/analytics/nuxt'
   ],
 
   // 4. Typography Owned Exclusively by @nuxt/fonts (Zero Duplicate Links)
   fonts: {
     defaults: {
-      styles: ['normal'],
       subsets: ['latin'],
     },
     families: [
@@ -50,12 +50,38 @@ export default defineNuxtConfig({
         global: true,
         preload: true,
       },
+      {
+        name: 'Inter',
+        provider: 'google',
+        styles: ['italic'],
+        weights: [400],
+        global: true,
+        preload: false,
+      },
     ],
   },
 
   // 5. Centralized GPU-Only Motion Directives (Hero Opacity: 1 for Instant LCP)
   motion: {
     directives: {
+      // Hero Stage Directives (LCP-Safe Opacity: 1)
+      'hero-char-wave': {
+        initial: { opacity: 1, y: 26, scale: 0.92 },
+        visibleOnce: {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          transition: { duration: 720, ease: [0.22, 1, 0.36, 1] },
+        },
+      },
+      'hero-word-wave': {
+        initial: { opacity: 1, y: 20 },
+        visibleOnce: {
+          opacity: 1,
+          y: 0,
+          transition: { duration: 680, ease: [0.22, 1, 0.36, 1] },
+        },
+      },
       'hero-fade-up': {
         initial: { opacity: 1, y: 28 },
         visibleOnce: {
@@ -79,6 +105,75 @@ export default defineNuxtConfig({
           opacity: 1,
           y: 0,
           transition: { duration: 700, ease: [0.22, 1, 0.36, 1] },
+        },
+      },
+
+      // Formation Stage Directives (Below-the-Fold Scroll Entry)
+      'header-glide-left': {
+        initial: { opacity: 0, x: -22 },
+        visibleOnce: {
+          opacity: 1,
+          x: 0,
+          transition: { duration: 640, ease: [0.22, 1, 0.36, 1] },
+        },
+      },
+      'header-glide-right': {
+        initial: { opacity: 0, x: 22 },
+        visibleOnce: {
+          opacity: 1,
+          x: 0,
+          transition: { duration: 640, delay: 80, ease: [0.22, 1, 0.36, 1] },
+        },
+      },
+      'stage-eyebrow': {
+        initial: { opacity: 0, y: 18, scale: 0.94 },
+        visibleOnce: {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          transition: { duration: 620, delay: 110, ease: [0.22, 1, 0.36, 1] },
+        },
+      },
+      'char-wave': {
+        initial: { opacity: 0, y: 42, scale: 0.86 },
+        visibleOnce: {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          transition: { duration: 720, ease: [0.22, 1, 0.36, 1] },
+        },
+      },
+      'word-wave': {
+        initial: { opacity: 0, y: 20 },
+        visibleOnce: {
+          opacity: 1,
+          y: 0,
+          transition: { duration: 620, ease: [0.22, 1, 0.36, 1] },
+        },
+      },
+      'svg-stage': {
+        initial: { opacity: 0, x: 28, scale: 0.96 },
+        visibleOnce: {
+          opacity: 1,
+          x: 0,
+          scale: 1,
+          transition: { duration: 880, delay: 180, ease: [0.22, 1, 0.36, 1] },
+        },
+      },
+      'rail-node': {
+        initial: { opacity: 0, y: 16 },
+        visibleOnce: {
+          opacity: 1,
+          y: 0,
+          transition: { duration: 560, ease: [0.22, 1, 0.36, 1] },
+        },
+      },
+      'rail-line': {
+        initial: { opacity: 0, scaleX: 0 },
+        visibleOnce: {
+          opacity: 1,
+          scaleX: 1,
+          transition: { duration: 920, delay: 200, ease: [0.22, 1, 0.36, 1] },
         },
       },
       'fade-up': {
