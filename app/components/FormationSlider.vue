@@ -39,6 +39,13 @@ const FORMATION_CHOREOGRAPHY = {
   railLineDurationMs: fms(920),
   railItemStartMs: fms(2340),
   railItemStaggerMs: fms(52),
+  switchCounterMs: fms(120),
+  switchTitleStartMs: fms(210),
+  switchTitleCharStaggerMs: fms(52),
+  switchLeadStartMs: fms(510),
+  switchLeadWordStaggerMs: fms(46),
+  switchCaptionStartMs: fms(770),
+  switchCaptionWordStaggerMs: fms(40),
 } as const
 
 const stickyFrameEl = ref<HTMLElement | null>(null)
@@ -106,7 +113,7 @@ onUnmounted(() => {
     <div
       ref="stickyFrameEl"
       tabindex="0"
-      class="formation-frame fixed inset-0 z-20 grid w-full grid-rows-[auto_1fr_auto] overflow-x-clip bg-transparent px-6 pt-7 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-12 sm:py-10 lg:px-20 lg:py-12 2xl:px-28 focus:outline-none pointer-events-none [@media(max-height:520px)]:py-3.5"
+      class="formation-frame fixed inset-x-0 top-0 z-20 grid h-svh w-full grid-rows-[auto_1fr_auto] overflow-x-clip bg-transparent px-6 pt-7 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-12 sm:py-10 lg:px-20 lg:py-12 2xl:px-28 focus:outline-none pointer-events-none [@media(max-height:520px)]:py-3.5"
       :class="isFormationTextReady ? 'is-revealed' : 'is-concealed'"
       :style="{
         '--unit-dur': `${FORMATION_CHOREOGRAPHY.unitDurationMs}ms`,
@@ -164,10 +171,11 @@ onUnmounted(() => {
               class="stage-editorial-card col-start-1 row-start-1 flex flex-col items-start justify-center"
             >
               <span
-                class="wave-unit eyebrow-resonance text-lg sm:text-xl lg:text-[1.35rem] font-bold tracking-[0.06em] text-brand-blue tabular-nums select-none [@media(max-height:520px)]:text-sm"
+                class="wave-unit stage-stagger-unit eyebrow-resonance text-lg sm:text-xl lg:text-[1.35rem] font-bold tracking-[0.06em] text-brand-blue tabular-nums select-none [@media(max-height:520px)]:text-sm"
                 :style="{
                   '--enter-y': '16px',
                   '--stagger-ms': `${FORMATION_CHOREOGRAPHY.counterStartMs}ms`,
+                  '--stage-stagger-ms': `${FORMATION_CHOREOGRAPHY.switchCounterMs}ms`,
                 }"
               >
                 {{ activeStage.number }} / 07
@@ -182,11 +190,12 @@ onUnmounted(() => {
                   :key="`${activeStage.slug}-char-${charIdx}`"
                   data-resonant-hover
                   aria-hidden="true"
-                  class="wave-unit title-char-outer inline-block"
+                  class="wave-unit stage-stagger-unit title-char-outer inline-block"
                   :style="{
                     '--enter-y': '30px',
                     '--enter-scale': '0.9',
                     '--stagger-ms': `${FORMATION_CHOREOGRAPHY.titleStartMs + charIdx * FORMATION_CHOREOGRAPHY.titleCharStaggerMs}ms`,
+                    '--stage-stagger-ms': `${FORMATION_CHOREOGRAPHY.switchTitleStartMs + charIdx * FORMATION_CHOREOGRAPHY.switchTitleCharStaggerMs}ms`,
                   }"
                 >
                   <span
@@ -204,10 +213,11 @@ onUnmounted(() => {
                   v-for="(word, wIdx) in splitWords(activeStage.lead)"
                   :key="`${activeStage.slug}-lead-${wIdx}`"
                   aria-hidden="true"
-                  class="wave-unit inline-block mr-[0.27em] last:mr-0"
+                  class="wave-unit stage-stagger-unit inline-block mr-[0.27em] last:mr-0"
                   :style="{
                     '--enter-y': '16px',
                     '--stagger-ms': `${FORMATION_CHOREOGRAPHY.leadStartMs + wIdx * FORMATION_CHOREOGRAPHY.leadWordStaggerMs}ms`,
+                    '--stage-stagger-ms': `${FORMATION_CHOREOGRAPHY.switchLeadStartMs + wIdx * FORMATION_CHOREOGRAPHY.switchLeadWordStaggerMs}ms`,
                   }"
                 >{{ word }}</span>
               </p>
@@ -220,10 +230,11 @@ onUnmounted(() => {
                   v-for="(word, wIdx) in splitWords(activeStage.caption)"
                   :key="`${activeStage.slug}-cap-${wIdx}`"
                   aria-hidden="true"
-                  class="wave-unit inline-block mr-[0.27em] last:mr-0"
+                  class="wave-unit stage-stagger-unit inline-block mr-[0.27em] last:mr-0"
                   :style="{
                     '--enter-y': '14px',
                     '--stagger-ms': `${FORMATION_CHOREOGRAPHY.captionStartMs + wIdx * FORMATION_CHOREOGRAPHY.captionWordStaggerMs}ms`,
+                    '--stage-stagger-ms': `${FORMATION_CHOREOGRAPHY.switchCaptionStartMs + wIdx * FORMATION_CHOREOGRAPHY.switchCaptionWordStaggerMs}ms`,
                   }"
                 >{{ word }}</span>
               </p>
@@ -242,16 +253,22 @@ onUnmounted(() => {
         />
       </div>
 
-      <!-- Row 3: Unfinished 01–07 Navigation Rail + Point-of-Click brand-blue "STILL FORMING." -->
+      <!-- Row 3 Spacer: Keeps Row 2 editorial & visual centering locked inside h-svh -->
+      <div aria-hidden="true" class="h-10 sm:h-11 [@media(max-height:520px)]:h-7" />
+
+      <!-- Option 1: True-Bottom Pinned 01–07 Navigation Rail -->
       <footer
-        class="relative z-10 mx-auto w-full max-w-[90rem] pt-2 pb-0.5 select-none [@media(max-height:520px)]:pt-1"
+        class="fixed inset-x-0 bottom-0 z-30 w-full px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-12 sm:pb-10 lg:px-20 lg:pb-12 2xl:px-28 select-none [@media(max-height:520px)]:pb-3.5"
         :class="isFormationTextReady ? 'pointer-events-auto' : 'pointer-events-none'"
       >
         <span aria-live="polite" class="sr-only">
           {{ attemptedStageIndex !== null ? `Stage ${stages[attemptedStageIndex]?.number} is still forming.` : '' }}
         </span>
 
-        <nav aria-label="Formation stages 01 through 07" class="relative w-full select-none">
+        <nav
+          aria-label="Formation stages 01 through 07"
+          class="relative mx-auto w-full max-w-[90rem] pt-2 pb-0.5 select-none [@media(max-height:520px)]:pt-1"
+        >
           <div class="flex w-full items-end justify-between select-none">
             <button
               v-for="(item, idx) in stages"
@@ -354,12 +371,12 @@ onUnmounted(() => {
 /* 3. Desktop Mouse / Trackpad Condition: Exact 100svh per stage */
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
   .formation-runway {
-    height: calc(100svh + (var(--extra-stages, 0) * 100svh));
+    height: calc(124svh + (var(--extra-stages, 0) * 100svh));
   }
 }
 
 .formation-runway[data-scroll-mode='desktop'] {
-  height: calc(100svh + (var(--extra-stages, 0) * 100svh));
+  height: calc(124svh + (var(--extra-stages, 0) * 100svh));
 }
 
 /* Orientation Parity with useConvergentScroll.ts */
@@ -412,6 +429,10 @@ onUnmounted(() => {
   transition-duration: 0.28s !important;
 }
 
+.is-concealed .stage-stagger-unit {
+  animation: none !important;
+}
+
 .is-revealed .wave-unit {
   opacity: 1;
   transform: translate3d(0, 0, 0) scale(1);
@@ -438,33 +459,59 @@ onUnmounted(() => {
 
 /* Stage Vertical Cross-Fades */
 .stage-fade-up-enter-active,
-.stage-fade-up-leave-active,
-.stage-fade-down-enter-active,
-.stage-fade-down-leave-active {
-  transition:
-    opacity 0.54s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.54s cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform, opacity;
+.stage-fade-down-enter-active {
+  transition: opacity 1.4s linear;
 }
 
-.stage-fade-up-enter-from {
-  opacity: 0;
-  transform: translate3d(0, 24px, 0);
+.stage-fade-up-leave-active,
+.stage-fade-down-leave-active {
+  pointer-events: none;
+  transition:
+    opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
 }
 
 .stage-fade-up-leave-to {
   opacity: 0;
-  transform: translate3d(0, -24px, 0);
-}
-
-.stage-fade-down-enter-from {
-  opacity: 0;
-  transform: translate3d(0, -24px, 0);
+  transform: translate3d(0, -22px, 0);
 }
 
 .stage-fade-down-leave-to {
   opacity: 0;
-  transform: translate3d(0, 24px, 0);
+  transform: translate3d(0, 22px, 0);
+}
+
+.stage-fade-up-enter-active .stage-stagger-unit {
+  opacity: 0;
+  animation: stageUnitRiseUp 0.68s cubic-bezier(0.22, 1, 0.36, 1) var(--stage-stagger-ms, 0ms) forwards;
+}
+
+.stage-fade-down-enter-active .stage-stagger-unit {
+  opacity: 0;
+  animation: stageUnitRiseDown 0.68s cubic-bezier(0.22, 1, 0.36, 1) var(--stage-stagger-ms, 0ms) forwards;
+}
+
+@keyframes stageUnitRiseUp {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, var(--enter-y, 18px), 0) scale(var(--enter-scale, 1));
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes stageUnitRiseDown {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, calc(var(--enter-y, 18px) * -1), 0) scale(var(--enter-scale, 1));
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
 }
 
 .date-fade-up-enter-active,

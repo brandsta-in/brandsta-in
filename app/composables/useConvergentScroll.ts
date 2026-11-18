@@ -34,6 +34,7 @@ export const CONVERGENT_CONSTANTS = {
   revealEnterThreshold: 0.92,
   revealExitThreshold: 0.84,
   stageScrollVhMultiplier: 1.0,
+  desktopDwellEndSvh: 1.24,
   /** Mobile browser reaches 1.00 at 0.88*svh and holds locked across a dwell zone up to 1.22*svh */
   browserHeroFinishSvh: 0.88,
   browserDwellEndSvh: 1.22,
@@ -172,13 +173,13 @@ function getHeroFinishPx(svh: number, mode: ViewportScrollMode): number {
 function getDwellEndPx(svh: number, mode: ViewportScrollMode): number {
   if (mode === 'mobile-browser') return svh * CONVERGENT_CONSTANTS.browserDwellEndSvh
   if (mode === 'pwa-fullscreen') return svh * CONVERGENT_CONSTANTS.pwaDwellEndSvh
-  return svh
+  return svh * CONVERGENT_CONSTANTS.desktopDwellEndSvh
 }
 
 function getSettledStage0TargetPx(svh: number, mode: ViewportScrollMode): number {
   if (mode === 'mobile-browser') return svh * 1.06
   if (mode === 'pwa-fullscreen') return svh * 1.02
-  return svh
+  return svh * 1.08
 }
 
 function saveScrollSession() {
@@ -264,7 +265,7 @@ function measureGeometry() {
     if (portrait) {
       // Anchor Portrait spout strictly to stable svh so URL-bar expand/collapse shifts 0.0px
       telemetry.spoutX = w * 0.77
-      telemetry.spoutY = Math.max(relTop + svh * 0.19, svh * 0.69)
+      telemetry.spoutY = svh * 0.69
     } else {
       telemetry.spoutX = relLeft + fw * 0.74
       telemetry.spoutY = svh * 0.5
@@ -638,6 +639,13 @@ export function useConvergentScroll() {
     }
   }
 
+  function onWindowClick(e: MouseEvent) {
+    if (!isFormationSettled.value) return
+    const target = e.target as HTMLElement | null
+    if (target?.closest('button, a')) return
+    triggerFormingPulse()
+  }
+
   function onWindowResize() {
     measureGeometry()
   }
@@ -667,12 +675,6 @@ export function useConvergentScroll() {
     const startScrollY = resolveInitialScrollY()
     prevScrollY = startScrollY
 
-    svhProbeEl = document.createElement('div')
-    svhProbeEl.setAttribute('aria-hidden', 'true')
-    svhProbeEl.style.cssText =
-      'position:fixed;top:0;left:0;width:0;height:100svh;pointer-events:none;visibility:hidden;z-index:-1;'
-    document.body.appendChild(svhProbeEl)
-
     lenisInstance = new Lenis({
       lerp: CONVERGENT_CONSTANTS.lenisLerp,
       smoothWheel: true,
@@ -693,6 +695,7 @@ export function useConvergentScroll() {
     measureGeometry()
 
     window.addEventListener('resize', onWindowResize, { passive: true })
+    window.addEventListener('click', onWindowClick, { passive: true })
     window.addEventListener('pagehide', onPageHide, { passive: true })
     window.addEventListener('pageshow', onPageShow, { passive: true })
     window.addEventListener('orientationchange', onOrientationChange, { passive: true })
@@ -725,6 +728,7 @@ export function useConvergentScroll() {
       if (boundaryCooldownTimer) clearTimeout(boundaryCooldownTimer)
 
       window.removeEventListener('resize', onWindowResize)
+      window.removeEventListener('click', onWindowClick)
       saveScrollSession()
       window.removeEventListener('pagehide', onPageHide)
       window.removeEventListener('pageshow', onPageShow)

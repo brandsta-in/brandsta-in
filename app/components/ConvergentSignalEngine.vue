@@ -19,6 +19,7 @@ const SPINDLE_SAMPLES = 10
 const WAKE_SAMPLES = 36
 const TWO_PI = Math.PI * 2
 
+const engineStageEl = ref<HTMLDivElement | null>(null)
 const worldGroupEl = ref<SVGGElement | null>(null)
 const clipRectEl = ref<SVGRectElement | null>(null)
 const pulseGroupEl = ref<SVGGElement | null>(null)
@@ -39,20 +40,37 @@ const ambientSparkEls: Array<SVGCircleElement | null> = new Array(AMBIENT_SPARKS
 
 const hx = new Float64Array(5)
 const hy = new Float64Array(5)
+const s1x = new Float64Array(5)
+const s1y = new Float64Array(5)
 const dxArr = new Float64Array(5)
 const dyArr = new Float64Array(5)
 const wx = new Float64Array(5)
 const wy = new Float64Array(5)
+
+const cometSpineX = new Float64Array(5)
+const cometSpineY = new Float64Array(5)
+const cometNormX = new Float64Array(5)
+const cometNormY = new Float64Array(5)
+
+const MOTION_HISTORY_STEPS = 24
+const histX = new Float64Array(MOTION_HISTORY_STEPS + 1)
+const histY = new Float64Array(MOTION_HISTORY_STEPS + 1)
+const histDist = new Float64Array(MOTION_HISTORY_STEPS + 1)
 
 const sampleX = new Float64Array(RIBBON_SAMPLES + 1)
 const sampleY = new Float64Array(RIBBON_SAMPLES + 1)
 const normX = new Float64Array(RIBBON_SAMPLES + 1)
 const normY = new Float64Array(RIBBON_SAMPLES + 1)
 const taperEnv = new Float64Array(RIBBON_SAMPLES + 1)
+const cometTaperEnv = new Float64Array(RIBBON_SAMPLES + 1)
 
 for (let k = 0; k <= RIBBON_SAMPLES; k++) {
   const u = k / RIBBON_SAMPLES
   taperEnv[k] = k === 0 || k === RIBBON_SAMPLES ? 0 : Math.pow(Math.sin(Math.PI * u), 0.68)
+  cometTaperEnv[k] =
+    k === 0 || k === RIBBON_SAMPLES
+      ? 0
+      : Math.pow(u, 1.3) * Math.sin(Math.PI * 0.5 * Math.min(1, (1 - u) * 8))
 }
 
 const spX = new Float64Array(SPINDLE_SAMPLES + 1)
@@ -70,6 +88,7 @@ for (let i = 0; i < NEURAL_STRANDS.length; i++) {
 
 let mountPerfMs = 0
 let scrollFastForward = 0
+let stage2RoamSec = 0
 let unsubscribeTick: (() => void) | null = null
 
 function setSheathRef(el: unknown, i: number) {
@@ -92,6 +111,10 @@ function setTipGlowRef(el: unknown, i: number) {
 }
 function setAmbientSparkRef(el: unknown, i: number) {
   ambientSparkEls[i] = el instanceof SVGCircleElement ? el : null
+}
+
+function clamp01(t: number): number {
+  return Math.max(0, Math.min(1, t))
 }
 
 function smoothstep01(t: number): number {
@@ -122,7 +145,151 @@ function getParticleIntroProgress(sIdx: number, elapsedMs: number): number {
   return Math.max(scrollFastForward, smoothstep01(raw))
 }
 
-function sampleCatmullRomScratch(u: number): [number, number] {
+function evalUmatraSpiral(
+  uRaw: number,
+  w: number,
+  svh: number,
+  spoutX: number,
+  spoutY: number,
+  portrait: boolean
+): [number, number] {
+  const u = clamp01(uRaw)
+  const uGrow = u * u
+
+  // Starts at -0.78*PI (40deg Top-Right tangent), then curls +1.92*PI clockwise into a center-left circular rise
+  const theta0 = -Math.PI * 0.78
+  const theta = theta0 + u * Math.PI * 1.92
+
+  const rx0 = portrait ? w * 0.075 : w * 0.085
+  const ry0 = portrait ? svh * 0.085 : svh * 0.125
+  const rx1 = portrait ? w * 0.25 : w * 0.22
+  const ry1 = portrait ? svh * 0.165 : svh * 0.25
+
+  const cx0 = spoutX - rx0 * Math.cos(theta0)
+  const cy0 = spoutY - ry0 * Math.sin(theta0)
+
+  const cx = cx0 - (portrait ? w * 0.18 : w * 0.16) * uGrow
+  const cy = cy0 - (portrait ? svh * 0.025 : svh * 0.04) * uGrow
+  const rx = rx0 + (rx1 - rx0) * uGrow
+  const ry = ry0 + (ry1 - ry0) * uGrow
+
+  return [cx + rx * Math.cos(theta), cy + ry * Math.sin(theta)]
+}
+
+const STAGE2_ROAM_TEMPO = 0.78 // Tune slightly up/down to adjust Stage 02 free-roam speed
+
+function evalStage2Point(
+  uRaw: number,
+  tauRaw: number,
+  w: number,
+  svh: number,
+  spoutX: number,
+  spoutY: number,
+  portrait: boolean
+): [number, number] {
+  const u = clamp01(uRaw)
+  const [sx, sy] = evalUmatraSpiral(u, w, svh, spoutX, spoutY, portrait)
+
+  const tau = Math.max(0, tauRaw)
+  const wRoam = smoothstep01(u)
+  const roamOpen = 1 - Math.exp(-tau * 1.35)
+  const effBlend = wRoam * roamOpen
+
+  if (effBlend <= 0.0001) return [sx, sy]
+
+  const roamCenterX = portrait ? w * 0.5 : w * 0.51
+  const roamCenterY = portrait ? svh * 0.55 : svh * 0.5
+  const roamAmpX = portrait ? w * 0.34 : w * 0.35
+  const roamAmpY = portrait ? svh * 0.22 : svh * 0.31
+
+  const rxNorm =
+    0.5 * Math.cos(tau * 1.0 + 1.2) +
+    0.32 * Math.sin(tau * 1.4142 + 0.4) +
+    0.18 * Math.cos(tau * 2.236 - 0.7)
+  const ryNorm =
+    -0.5 * Math.cos(tau * 0.866 + 0.25) -
+    0.32 * Math.sin(tau * 1.618 + 0.5) +
+    0.18 * Math.sin(tau * 2.073)
+
+  const pureRoamX = roamCenterX + rxNorm * roamAmpX
+  const pureRoamY = roamCenterY + ryNorm * roamAmpY
+
+  return [
+    sx + (pureRoamX - sx) * effBlend,
+    sy + (pureRoamY - sy) * effBlend,
+  ]
+}
+
+function updateStage2CometSpine(
+  uHead: number,
+  tauHead: number,
+  w: number,
+  svh: number,
+  spoutX: number,
+  spoutY: number,
+  portrait: boolean
+) {
+  const roamWeight = smoothstep01((uHead - 0.72) / 0.28)
+  const uTailSpan = 0.48 * (1 - roamWeight * 0.86)
+  const tauTailSpan = 1.65
+
+  for (let s = 0; s <= MOTION_HISTORY_STEPS; s++) {
+    const frac = s / MOTION_HISTORY_STEPS
+    const uSample = Math.max(0, uHead - frac * uTailSpan)
+    const tauSample = Math.max(0, tauHead - frac * tauTailSpan)
+    const [px, py] = evalStage2Point(uSample, tauSample, w, svh, spoutX, spoutY, portrait)
+    histX[s] = px
+    histY[s] = py
+    if (s === 0) {
+      histDist[0] = 0
+    } else {
+      histDist[s] = histDist[s - 1]! + Math.hypot(px - histX[s - 1]!, py - histY[s - 1]!)
+    }
+  }
+
+  const desiredTailLen = portrait ? w * 0.46 : w * 0.3
+  const totalHistLen = histDist[MOTION_HISTORY_STEPS]!
+
+  const endDx = histX[MOTION_HISTORY_STEPS]! - histX[MOTION_HISTORY_STEPS - 2]!
+  const endDy = histY[MOTION_HISTORY_STEPS]! - histY[MOTION_HISTORY_STEPS - 2]!
+  const endLen = Math.hypot(endDx, endDy)
+  const extUx = endLen > 0.5 ? endDx / endLen : -1
+  const extUy = endLen > 0.5 ? endDy / endLen : 0
+
+  cometSpineX[4] = histX[0]!
+  cometSpineY[4] = histY[0]!
+
+  for (let k = 0; k < 4; k++) {
+    const targetDist = desiredTailLen * ((4 - k) / 4)
+    if (targetDist <= totalHistLen && totalHistLen > 0.5) {
+      let seg = 0
+      while (seg < MOTION_HISTORY_STEPS - 1 && histDist[seg + 1]! < targetDist) {
+        seg++
+      }
+      const d0 = histDist[seg]!
+      const d1 = histDist[seg + 1]!
+      const f = d1 > d0 ? (targetDist - d0) / (d1 - d0) : 0
+      cometSpineX[k] = histX[seg]! + (histX[seg + 1]! - histX[seg]!) * f
+      cometSpineY[k] = histY[seg]! + (histY[seg + 1]! - histY[seg]!) * f
+    } else {
+      const extra = targetDist - totalHistLen
+      cometSpineX[k] = histX[MOTION_HISTORY_STEPS]! + extUx * extra
+      cometSpineY[k] = histY[MOTION_HISTORY_STEPS]! + extUy * extra
+    }
+  }
+
+  for (let k = 0; k <= 4; k++) {
+    const prev = k === 0 ? 0 : k - 1
+    const next = k === 4 ? 4 : k + 1
+    const tx = cometSpineX[next]! - cometSpineX[prev]!
+    const ty = cometSpineY[next]! - cometSpineY[prev]!
+    const tLen = Math.hypot(tx, ty) || 1
+    cometNormX[k] = -ty / tLen
+    cometNormY[k] = tx / tLen
+  }
+}
+
+function sampleCatmullRomFrom(arrX: Float64Array, arrY: Float64Array, u: number): [number, number] {
   const clamped = Math.max(0, Math.min(0.999999, u))
   const scaled = clamped * 4
   const s = Math.floor(scaled)
@@ -133,15 +300,15 @@ function sampleCatmullRomScratch(u: number): [number, number] {
   const i1 = s + 1
   const i2 = s + 2 > 4 ? 4 : s + 2
 
-  const x0 = wx[i0]!
-  const y0 = wy[i0]!
-  const x3 = wx[i1]!
-  const y3 = wy[i1]!
+  const x0 = arrX[i0]!
+  const y0 = arrY[i0]!
+  const x3 = arrX[i1]!
+  const y3 = arrY[i1]!
 
-  const x1 = x0 + (x3 - wx[im1]!) / 6
-  const y1 = y0 + (y3 - wy[im1]!) / 6
-  const x2 = x3 - (wx[i2]! - x0) / 6
-  const y2 = y3 - (wy[i2]! - y0) / 6
+  const x1 = x0 + (x3 - arrX[im1]!) / 6
+  const y1 = y0 + (y3 - arrY[im1]!) / 6
+  const x2 = x3 - (arrX[i2]! - x0) / 6
+  const y2 = y3 - (arrY[i2]! - y0) / 6
 
   const mt = 1 - t
   const mt2 = mt * mt
@@ -153,6 +320,10 @@ function sampleCatmullRomScratch(u: number): [number, number] {
     mt3 * x0 + 3 * mt2 * t * x1 + 3 * mt * t2 * x2 + t3 * x3,
     mt3 * y0 + 3 * mt2 * t * y1 + 3 * mt * t2 * y2 + t3 * y3,
   ]
+}
+
+function sampleCatmullRomScratch(u: number): [number, number] {
+  return sampleCatmullRomFrom(wx, wy, u)
 }
 
 function populateSpineAndNormals(clickImpulse: number, nowSec: number, growU: number) {
@@ -187,17 +358,19 @@ function populateSpineAndNormals(clickImpulse: number, nowSec: number, growU: nu
   }
 }
 
-function buildTaperedRibbonFromSpine(peakHalfWidth: number): string {
+function buildTaperedRibbonFromSpine(peakHalfWidth: number, cometBlend = 0): string {
   let d = `M ${sampleX[0]!.toFixed(1)} ${sampleY[0]!.toFixed(1)}`
   for (let k = 1; k < RIBBON_SAMPLES; k++) {
-    const hw = peakHalfWidth * taperEnv[k]!
+    const env = taperEnv[k]! + (cometTaperEnv[k]! - taperEnv[k]!) * cometBlend
+    const hw = peakHalfWidth * env
     const lx = sampleX[k]! + normX[k]! * hw
     const ly = sampleY[k]! + normY[k]! * hw
     d += ` L ${lx.toFixed(1)} ${ly.toFixed(1)}`
   }
   d += ` L ${sampleX[RIBBON_SAMPLES]!.toFixed(1)} ${sampleY[RIBBON_SAMPLES]!.toFixed(1)}`
   for (let k = RIBBON_SAMPLES - 1; k >= 1; k--) {
-    const hw = peakHalfWidth * taperEnv[k]!
+    const env = taperEnv[k]! + (cometTaperEnv[k]! - taperEnv[k]!) * cometBlend
+    const hw = peakHalfWidth * env
     const rx = sampleX[k]! - normX[k]! * hw
     const ry = sampleY[k]! - normY[k]! * hw
     d += ` L ${rx.toFixed(1)} ${ry.toFixed(1)}`
@@ -245,8 +418,10 @@ function buildTaperedSpindle(
   return `${d} Z`
 }
 
-function spotEnvelopeAlpha(u: number, contactProg = 0): number {
-  const headFade = u < 0.12 ? (u / 0.12) * 0.96 : 0.96
+function spotEnvelopeAlpha(u: number, contactProg = 0, cometBlend = 0): number {
+  const baseHeadFade = u < 0.12 ? (u / 0.12) * 0.96 : 0.96
+  const cometTailFade = Math.pow(clamp01(u), 1.6) * 0.96
+  const headFade = baseHeadFade + (cometTailFade - baseHeadFade) * cometBlend
   if (u > 0.88) {
     const tailFloor = contactProg * 0.75
     return Math.max(tailFloor, ((1 - u) / 0.12) * 0.96)
@@ -262,34 +437,43 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
   const heroProg = tel.heroProgress
   const contactProg = tel.contactProgress
   const stageProg = tel.stageProgress
-  const worldShiftX = tel.worldOffsetX
   const hoverPull = tel.hoverPull * (1 - heroProg)
   const clickImpulse = tel.clickImpulse
 
+  const stageH = engineStageEl.value?.clientHeight || h
   if (svgW.value !== w) svgW.value = w
-  if (svgH.value !== h) svgH.value = h
+  if (svgH.value !== stageH) svgH.value = stageH
 
   const elapsedMs = mountPerfMs > 0 ? Math.max(0, nowSec * 1000 - mountPerfMs) : 0
   if (heroProg > 0.015) {
     scrollFastForward = Math.min(1, scrollFastForward + dtSec * 3.8)
   }
 
-  if (clipRectEl.value && worldGroupEl.value) {
-    if (stageProg > 0.004) {
-      const clipX = portrait ? 0 : Math.max(0, tel.fieldLeft - 16)
-      const clipY = portrait ? Math.max(0, tel.fieldTop - 8) : 0
-      clipRectEl.value.setAttribute('x', clipX.toFixed(1))
-      clipRectEl.value.setAttribute('y', clipY.toFixed(1))
-      clipRectEl.value.setAttribute('width', Math.max(1, w - clipX).toFixed(1))
-      clipRectEl.value.setAttribute('height', Math.max(1, h - clipY).toFixed(1))
-      worldGroupEl.value.setAttribute('clip-path', 'url(#stageVisualClip)')
-    } else {
-      worldGroupEl.value.removeAttribute('clip-path')
-    }
-  }
-
   const spoutX = tel.spoutX
   const spoutY = tel.spoutY
+
+  const mProg = clamp01(stageProg)
+  const uMotion = smoothstep01(mProg)
+
+  if (uMotion <= 0.001) {
+    stage2RoamSec = 0
+  } else {
+    const roamDrive = smoothstep01((uMotion - 0.78) / 0.22)
+    stage2RoamSec += dtSec * STAGE2_ROAM_TEMPO * (0.15 + 0.85 * roamDrive)
+  }
+
+  let activePulseX = spoutX
+  let activePulseY = spoutY
+  if (mProg > 0.0001) {
+    updateStage2CometSpine(uMotion, stage2RoamSec, w, svh, spoutX, spoutY, portrait)
+    activePulseX = cometSpineX[4]!
+    activePulseY = cometSpineY[4]!
+  }
+
+  const cometWidthScale = 1 - uMotion * 0.28
+  const bundleSheathGain = 1 - uMotion * 0.66
+  const bundleCoreGain = 1 - uMotion * 0.64
+  const bundleSpotGain = 1 - uMotion * 0.62
 
   const scrollFlowBoost = Math.sin(Math.PI * heroProg) * 0.55
   const speedBoost = 1 + hoverPull * 0.88 + clickImpulse * 2.1 + scrollFlowBoost
@@ -345,28 +529,59 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
         wy[k] = hy[k]!
       }
     } else {
-      const destTipX = spoutX + worldShiftX
-      const destTipY = spoutY
       const spanX = maxSpanX * spec.stage1Reach
       const fanY = (spec.stage1Fan < 0 ? maxFanUpY : maxFanDownY) * spec.stage1Fan
-
       const settleDrift = Math.sin(nowSec * (spec.driftFreq * 0.9) + spec.driftPhase) * (spec.driftAmpPx * 0.38)
 
-      dxArr[0] = destTipX - spanX
-      dyArr[0] = destTipY + fanY + settleDrift
-      dxArr[1] = destTipX - spanX * 0.74
-      dyArr[1] = destTipY + fanY * 0.84 + settleDrift * 0.8
-      dxArr[2] = destTipX - spanX * 0.45
-      dyArr[2] = destTipY + fanY * 0.42 - settleDrift * 0.5
-      dxArr[3] = destTipX - spanX * 0.19
-      dyArr[3] = destTipY + fanY * 0.085 + settleDrift * 0.2
-      dxArr[4] = destTipX
-      dyArr[4] = destTipY
+      s1x[0] = spoutX - spanX
+      s1y[0] = spoutY + fanY + settleDrift
+      s1x[1] = spoutX - spanX * 0.74
+      s1y[1] = spoutY + fanY * 0.84 + settleDrift * 0.8
+      s1x[2] = spoutX - spanX * 0.45
+      s1y[2] = spoutY + fanY * 0.42 - settleDrift * 0.5
+      s1x[3] = spoutX - spanX * 0.19
+      s1y[3] = spoutY + fanY * 0.085 + settleDrift * 0.2
+      s1x[4] = spoutX
+      s1y[4] = spoutY
+
+      if (mProg <= 0.0001) {
+        for (let k = 0; k < 5; k++) {
+          dxArr[k] = s1x[k]!
+          dyArr[k] = s1y[k]!
+        }
+      } else {
+      const strandReach = 0.62 + 0.38 * clamp01(spec.stage1Reach)
+      const strandBraid = smoothstep01(clamp01(mProg * 1.08))
+
+      for (let k = 0; k < 4; k++) {
+        const spinePos = Math.max(0, Math.min(3.9999, 4 - (4 - k) * strandReach))
+        const idx0 = Math.max(0, Math.min(3, Math.floor(spinePos)))
+        const frac = spinePos - idx0
+
+          const cx = cometSpineX[idx0]! + (cometSpineX[idx0 + 1]! - cometSpineX[idx0]!) * frac
+          const cy = cometSpineY[idx0]! + (cometSpineY[idx0 + 1]! - cometSpineY[idx0]!) * frac
+          const nx = cometNormX[idx0]! + (cometNormX[idx0 + 1]! - cometNormX[idx0]!) * frac
+          const ny = cometNormY[idx0]! + (cometNormY[idx0 + 1]! - cometNormY[idx0]!) * frac
+
+          const braidEnv = Math.sin((k / 4) * Math.PI * 0.85)
+          const microWeave = Math.sin(nowSec * (spec.driftFreq * 1.15) + spec.driftPhase + k * 0.9) * 1.2
+          const tightOffset = (spec.stage1Fan * (portrait ? 2.6 : 3.6) + microWeave) * braidEnv
+
+          const cTargetX = cx + nx * tightOffset
+          const cTargetY = cy + ny * tightOffset
+
+          dxArr[k] = s1x[k]! + (cTargetX - s1x[k]!) * strandBraid
+          dyArr[k] = s1y[k]! + (cTargetY - s1y[k]!) * strandBraid
+        }
+
+        dxArr[4] = activePulseX
+        dyArr[4] = activePulseY
+      }
 
       const preGapX = (portrait ? 14 : 22) + Math.abs(spec.stage1Fan) * (portrait ? 12 : 20)
       const preGapY = spec.stage1Fan * (portrait ? 18 : 34)
-      const preContactX = destTipX - preGapX
-      const preContactY = destTipY + preGapY
+      const preContactX = dxArr[4]! - preGapX
+      const preContactY = dyArr[4]! + preGapY
 
       const rawApproach = Math.min(1, heroProg / cThresh)
       const tipApproach = smoothstep01(Math.pow(rawApproach, spec.convergenceExponent * 0.92))
@@ -375,8 +590,8 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
       const approachedTipX = hx[4]! + (preContactX - hx[4]!) * tipApproach
       const approachedTipY = hy[4]! + (preContactY - hy[4]!) * tipApproach + portraitSwoopY
 
-      wx[4] = approachedTipX + (destTipX - approachedTipX) * kissEase
-      wy[4] = approachedTipY + (destTipY - approachedTipY) * kissEase
+      wx[4] = approachedTipX + (dxArr[4]! - approachedTipX) * kissEase
+      wy[4] = approachedTipY + (dyArr[4]! - approachedTipY) * kissEase
 
       const uBody = smoothstep01(Math.pow(heroProg, spec.convergenceExponent))
 
@@ -392,7 +607,7 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
         const td = Math.atan2(vdy, vdx)
 
         let deltaTheta = ((td - th + Math.PI * 3) % TWO_PI) - Math.PI
-        if (spec.wing === 'right' && spec.stage1Fan >= -0.06 && deltaTheta < 0) {
+        if (mProg < 0.01 && spec.wing === 'right' && spec.stage1Fan >= -0.06 && deltaTheta < 0) {
           deltaTheta += TWO_PI
         }
 
@@ -407,27 +622,27 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
     populateSpineAndNormals(clickImpulse, nowSec, growU)
 
     const introFade = Math.min(1, growU / 0.28)
-    const funnelRefine = 1 - heroProg * 0.28
+    const funnelRefine = (1 - heroProg * 0.28) * cometWidthScale
     const sheathRefine = 1 - heroProg * 0.34
 
     const sheathEl = sheathPathEls[i]
     if (sheathEl) {
-      sheathEl.setAttribute('d', buildTaperedRibbonFromSpine(spec.maxWidth * 3.2 * funnelRefine))
+      sheathEl.setAttribute('d', buildTaperedRibbonFromSpine(spec.maxWidth * 3.2 * funnelRefine, uMotion))
       sheathEl.style.opacity = Math.min(
         0.65,
-        spec.sheathOpacity * sheathRefine * glowBoost * introFade
+        spec.sheathOpacity * sheathRefine * glowBoost * introFade * bundleSheathGain
       ).toFixed(2)
     }
 
     const coreEl = corePathEls[i]
     if (coreEl) {
-      coreEl.setAttribute('d', buildTaperedRibbonFromSpine(spec.maxWidth * 0.55 * funnelRefine))
-      coreEl.style.opacity = Math.min(1, spec.coreOpacity * glowBoost * introFade).toFixed(2)
+      coreEl.setAttribute('d', buildTaperedRibbonFromSpine(spec.maxWidth * 0.55 * funnelRefine, uMotion))
+      coreEl.style.opacity = Math.min(1, spec.coreOpacity * glowBoost * introFade * bundleCoreGain).toFixed(2)
     }
 
     // During intro growth, bright spot rides the leading head inward before settling into continuous phase
     const activePhase = growU < 0.995 ? growU * 0.92 : p1Phase
-    const p1Alpha = spotEnvelopeAlpha(activePhase, kissEase) * introFade
+    const p1Alpha = spotEnvelopeAlpha(activePhase, kissEase, uMotion) * introFade * bundleSpotGain
 
     const spindleEl = spindlePathEls[i]
     if (spindleEl) {
@@ -456,7 +671,12 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
       if (sSpotEl) {
         const p2Phase = ((p1Phase + (spec.secondaryOffset ?? 0.5)) % 1) * growU
         const p2Alpha =
-          growU < 0.65 ? 0 : spotEnvelopeAlpha(p2Phase, kissEase) * 0.85 * ((growU - 0.65) / 0.35)
+          growU < 0.65
+            ? 0
+            : spotEnvelopeAlpha(p2Phase, kissEase, uMotion) *
+              0.85 *
+              ((growU - 0.65) / 0.35) *
+              bundleSpotGain
         const [sx2, sy2] = sampleCatmullRomScratch(p2Phase)
         const convergeSpotScale = spotScale * (1 - heroProg * 0.18)
         sSpotEl.style.transform = `translate3d(${sx2.toFixed(1)}px, ${sy2.toFixed(1)}px, 0) scale(${convergeSpotScale.toFixed(3)})`
@@ -471,7 +691,7 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
         const tipPulse = p1Phase > 0.78 ? Math.sin(((p1Phase - 0.78) / 0.22) * Math.PI) * 0.35 : 0
         const tipFade = (1 - kissEase * 0.85) * introFade
         tipEl.style.transform = `translate3d(${tx.toFixed(1)}px, ${ty.toFixed(1)}px, 0) scale(${spotScale.toFixed(3)})`
-        tipEl.style.opacity = Math.min(1, (0.62 + tipPulse) * glowBoost * tipFade).toFixed(2)
+        tipEl.style.opacity = Math.min(1, (0.62 + tipPulse) * glowBoost * tipFade * (1 - uMotion)).toFixed(2)
       }
     }
   }
@@ -481,14 +701,10 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
     if (contactProg <= 0.001) {
       pulseGroupEl.value.style.opacity = '0'
     } else {
-      const motionBlend = smoothstep01(Math.min(1, stageProg))
-      const targetStageCenterX = portrait ? w * 0.54 : tel.fieldLeft + tel.fieldWidth * 0.56
-      const pulseX = spoutX + (targetStageCenterX - spoutX) * motionBlend
       const freqOscY =
-        stageProg > 1 
-          ? Math.sin(nowSec * 3.2) * Math.min(1, stageProg - 1) * 14
-          : 0
-      const pulseY = spoutY + freqOscY
+        stageProg > 1 ? Math.sin(nowSec * 3.2) * Math.min(1, stageProg - 1) * 14 : 0
+      const pulseX = activePulseX
+      const pulseY = activePulseY + freqOscY
 
       const breathe = 1 + Math.sin(nowSec * 2.3) * 0.045
       const coreScale = (0.22 + 0.78 * kissEase) * breathe * (1 + clickImpulse * 0.28)
@@ -496,28 +712,45 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
       pulseGroupEl.value.style.opacity = kissEase.toFixed(3)
       pulseGroupEl.value.style.transform = `translate3d(${pulseX.toFixed(1)}px, ${pulseY.toFixed(1)}px, 0) scale(${coreScale.toFixed(3)})`
 
-      const baseR = portrait ? Math.min(w, svh) * 0.3 : Math.min(w, svh) * 0.24
+      const rawBaseR = portrait ? Math.min(w, svh) * 0.3 : Math.min(w, svh) * 0.24
+      const baseR = rawBaseR * (1 - uMotion * 0.18)
+
+      // Periodic autonomous ring blink (~every 4.6s) + full concentric bloom on click
+      const blinkPos = (nowSec % 4.6) / 1.65
+      const autoBlink1 = blinkPos < 1 ? Math.sin(Math.PI * clamp01(blinkPos / 0.82)) : 0
+      const autoBlink2 =
+        blinkPos > 0.08 && blinkPos < 1.08 ? Math.sin(Math.PI * clamp01((blinkPos - 0.08) / 0.86)) : 0
+      const autoBlink3 =
+        blinkPos > 0.16 && blinkPos < 1.18 ? Math.sin(Math.PI * clamp01((blinkPos - 0.16) / 0.9)) : 0
+      const clickRingBloom = clickImpulse > 0.005 ? Math.sin(Math.PI * (1 - clickImpulse)) : 0
+
       const rExpand1 = 0.25 + 0.75 * smoothstep01(Math.min(1, contactProg * 1.25))
       const rExpand2 = 0.18 + 0.82 * smoothstep01(Math.max(0, (contactProg - 0.1) / 0.9))
       const rExpand3 = 0.12 + 0.88 * smoothstep01(Math.max(0, (contactProg - 0.22) / 0.78))
 
       if (auraCircleEl.value) {
-        auraCircleEl.value.setAttribute('r', (baseR * 1.15).toFixed(1))
+        auraCircleEl.value.setAttribute('r', (baseR * (1.15 - uMotion * 0.2)).toFixed(1))
       }
       if (ring1El.value) {
         const ringBreathe1 = 1 + Math.sin(nowSec * 1.8) * 0.02
+        const s1Alpha = Math.min(0.62, 0.34 + clickRingBloom * 0.28)
+        const s2Alpha = Math.min(0.62, 0.025 + autoBlink1 * 0.3 + clickRingBloom * 0.54)
         ring1El.value.setAttribute('r', (baseR * 0.34 * rExpand1 * ringBreathe1).toFixed(1))
-        ring1El.value.style.opacity = (kissEase * 0.34).toFixed(3)
+        ring1El.value.style.opacity = (kissEase * (s1Alpha * (1 - uMotion) + s2Alpha * uMotion)).toFixed(3)
       }
       if (ring2El.value) {
         const ringBreathe2 = 1 + Math.cos(nowSec * 1.45) * 0.024
+        const s1Alpha = Math.min(0.46, 0.22 + clickRingBloom * 0.22)
+        const s2Alpha = Math.min(0.46, 0.015 + autoBlink2 * 0.21 + clickRingBloom * 0.4)
         ring2El.value.setAttribute('r', (baseR * 0.64 * rExpand2 * ringBreathe2).toFixed(1))
-        ring2El.value.style.opacity = (kissEase * 0.22).toFixed(3)
+        ring2El.value.style.opacity = (kissEase * (s1Alpha * (1 - uMotion) + s2Alpha * uMotion)).toFixed(3)
       }
       if (ring3El.value) {
         const ringBreathe3 = 1 + Math.sin(nowSec * 1.15 + 1) * 0.028
+        const s1Alpha = Math.min(0.32, 0.13 + clickRingBloom * 0.16)
+        const s2Alpha = Math.min(0.32, 0.008 + autoBlink3 * 0.13 + clickRingBloom * 0.28)
         ring3El.value.setAttribute('r', (baseR * 0.98 * rExpand3 * ringBreathe3).toFixed(1))
-        ring3El.value.style.opacity = (kissEase * 0.13).toFixed(3)
+        ring3El.value.style.opacity = (kissEase * (s1Alpha * (1 - uMotion) + s2Alpha * uMotion)).toFixed(3)
       }
 
       if (contactWaveEl.value) {
@@ -531,26 +764,23 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
       }
 
       if (wakeStreamEl.value) {
-        if (stageProg > 0.01) {
-          const tailStartX = Math.max(portrait ? -40 : tel.fieldLeft - 40, spoutX + worldShiftX)
-          const freqAmp = stageProg > 1 ? Math.min(1, stageProg - 1) * (portrait ? 22 : 32) : 0
-          let wd = ''
-          for (let s = 0; s <= WAKE_SAMPLES; s++) {
-            const u = s / WAKE_SAMPLES
-            const px = tailStartX + (pulseX - tailStartX) * u
-            const env = Math.sin(Math.PI * u)
-            const py =
-              spoutY +
-              (pulseY - spoutY) * u +
-              Math.sin(u * Math.PI * 4 - nowSec * 4.2) * freqAmp * env
-            wd += s === 0 ? `M ${px.toFixed(1)} ${py.toFixed(1)}` : ` L ${px.toFixed(1)} ${py.toFixed(1)}`
-          }
-          wakeStreamEl.value.setAttribute('d', wd)
-          wakeStreamEl.value.style.opacity = Math.min(0.88, stageProg * 1.2).toFixed(2)
-        } else {
-          wakeStreamEl.value.style.opacity = '0'
-        }
+        wakeStreamEl.value.style.opacity = '0'
       }
+
+      // if (wakeStreamEl.value) {
+      //   if (uMotion > 0.02) {
+      //     let wd = ''
+      //     for (let s = 0; s <= WAKE_SAMPLES; s++) {
+      //       const u = s / WAKE_SAMPLES
+      //       const [cx, cy] = sampleCatmullRomFrom(cometSpineX, cometSpineY, u)
+      //       wd += s === 0 ? `M ${cx.toFixed(1)} ${cy.toFixed(1)}` : ` L ${cx.toFixed(1)} ${cy.toFixed(1)}`
+      //     }
+      //     wakeStreamEl.value.setAttribute('d', wd)
+      //     wakeStreamEl.value.style.opacity = (uMotion * 0.44).toFixed(2)
+      //   } else {
+      //     wakeStreamEl.value.style.opacity = '0'
+      //   }
+      // }
     }
   }
 
@@ -596,8 +826,9 @@ onUnmounted(() => {
 
 <template>
   <div
+    ref="engineStageEl"
     aria-hidden="true"
-    class="engine-stage pointer-events-none fixed inset-0 z-0 min-h-lvh overflow-hidden bg-brand-void select-none"
+    class="engine-stage pointer-events-none fixed inset-x-0 top-0 z-0 h-lvh w-full overflow-hidden bg-brand-void select-none"
   >
     <!-- Beat 1 (0ms -> 680ms): Deep Dark-Blue Gradient Fading Smoothly Into Pure Black -->
     <div
@@ -610,8 +841,7 @@ onUnmounted(() => {
 
     <svg
       :viewBox="`0 0 ${svgW} ${svgH}`"
-      preserveAspectRatio="none"
-      class="fixed inset-0 h-full w-full"
+      class="relative z-10 block h-full w-full"
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>

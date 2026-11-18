@@ -23,10 +23,10 @@ export const FORMATION_STAGES: FormationStageItem[] = [
     number: '02',
     slug: 'motion',
     title: 'MOTION',
-    lead: '',
-    caption: '',
+    lead: 'Energy doesn’t remain still.',
+    caption: 'A pulse sets it in motion.',
     dateLabel: 'NOV 18 · 2026',
-    unlocked: false,
+    unlocked: true,
   },
   {
     number: '03',
