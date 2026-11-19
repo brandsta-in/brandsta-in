@@ -14,7 +14,7 @@ const { onScrollTick } = useConvergentScroll()
 const svgW = ref(1440)
 const svgH = ref(900)
 
-const RIBBON_SAMPLES = 28
+const RIBBON_SAMPLES = 56
 const SPINDLE_SAMPLES = 10
 const WAKE_SAMPLES = 36
 const TWO_PI = Math.PI * 2
@@ -72,6 +72,34 @@ for (let k = 0; k <= RIBBON_SAMPLES; k++) {
       ? 0
       : Math.pow(u, 1.3) * Math.sin(Math.PI * 0.5 * Math.min(1, (1 - u) * 8))
 }
+
+const freqTaperEnv = new Float64Array(RIBBON_SAMPLES + 1)
+for (let k = 0; k <= RIBBON_SAMPLES; k++) {
+  const u = k / RIBBON_SAMPLES
+  freqTaperEnv[k] =
+    k === 0 || k === RIBBON_SAMPLES
+      ? 0
+      : Math.pow(Math.sin(Math.PI * 0.5 * Math.min(1, u / 0.18)), 1.15) *
+        Math.sin(Math.PI * 0.5 * Math.min(1, (1 - u) / 0.1))
+}
+
+const FREQ_LUT_STEPS = 512
+const freqLutX = new Float64Array(FREQ_LUT_STEPS + 1)
+const freqLutY = new Float64Array(FREQ_LUT_STEPS + 1)
+const freqLutS = new Float64Array(FREQ_LUT_STEPS + 1)
+const stage3SpineX = new Float64Array(RIBBON_SAMPLES + 1)
+const stage3SpineY = new Float64Array(RIBBON_SAMPLES + 1)
+const stage3NormX = new Float64Array(RIBBON_SAMPLES + 1)
+const stage3NormY = new Float64Array(RIBBON_SAMPLES + 1)
+
+let freqLutTotalLen = 1
+let freqSnakeMaxLen = 1
+let freqCurrentLenRatio = 0
+let freqLutW = 0
+let freqLutSvh = 0
+let freqLutFieldLeft = 0
+let freqLutPortrait = false
+let stage3TravelPx = 0
 
 const spX = new Float64Array(SPINDLE_SAMPLES + 1)
 const spY = new Float64Array(SPINDLE_SAMPLES + 1)
@@ -289,6 +317,133 @@ function updateStage2CometSpine(
   }
 }
 
+function ensureStage3TrackLut(w: number, svh: number, fieldLeft: number, portrait: boolean) {
+  if (
+    w === freqLutW &&
+    svh === freqLutSvh &&
+    Math.abs(fieldLeft - freqLutFieldLeft) < 1 &&
+    portrait === freqLutPortrait
+  ) {
+    return
+  }
+  freqLutW = w
+  freqLutSvh = svh
+  freqLutFieldLeft = fieldLeft
+  freqLutPortrait = portrait
+
+  const wavesPerLane = portrait ? 4 : 5
+  const outerLeft = portrait ? w * 0.055 : Math.max(w * 0.425, fieldLeft + 8)
+  const outerRight = portrait ? w * 0.945 : w * 0.962
+  const yTop = portrait ? svh * 0.575 : svh * 0.445
+  const yBot = portrait ? svh * 0.755 : svh * 0.635
+  const waveAmp = portrait ? svh * 0.028 : svh * 0.033
+
+  const yMid = (yTop + yBot) * 0.5
+  const turnRy = (yBot - yTop) * 0.5 + waveAmp
+  const spanAvail = Math.max(120, outerRight - outerLeft)
+  const turnRx = Math.min(turnRy * 0.66, spanAvail * 0.11)
+
+  const xLeft = outerLeft + turnRx
+  const xRight = Math.max(xLeft + 60, outerRight - turnRx)
+  const laneW = xRight - xLeft
+
+  const sinRatio = Math.max(-0.95, Math.min(-0.1, (yTop - yMid) / turnRy))
+  const thetaStart = Math.PI - Math.asin(sinRatio)
+  const dThetaEntry = Math.PI * 1.5 - thetaStart
+  const dThetaReturn = thetaStart - Math.PI * 0.5
+
+  for (let k = 0; k <= FREQ_LUT_STEPS; k++) {
+    let px = 0
+    let py = 0
+    if (k <= 16) {
+      const th = thetaStart + dThetaEntry * (k / 16)
+      px = xLeft + turnRx * Math.cos(th)
+      py = yMid + turnRy * Math.sin(th)
+    } else if (k <= 208) {
+      const u = (k - 16) / 192
+      px = xLeft + laneW * u
+      py = yTop - waveAmp * Math.cos(TWO_PI * wavesPerLane * u)
+    } else if (k <= 272) {
+      const th = -Math.PI * 0.5 + Math.PI * ((k - 208) / 64)
+      px = xRight + turnRx * Math.cos(th)
+      py = yMid + turnRy * Math.sin(th)
+    } else if (k <= 464) {
+      const u = (k - 272) / 192
+      px = xRight - laneW * u
+      py = yBot + waveAmp * Math.cos(TWO_PI * wavesPerLane * u)
+    } else {
+      const th = Math.PI * 0.5 + dThetaReturn * ((k - 464) / 48)
+      px = xLeft + turnRx * Math.cos(th)
+      py = yMid + turnRy * Math.sin(th)
+    }
+
+    freqLutX[k] = px
+    freqLutY[k] = py
+    if (k === 0) {
+      freqLutS[0] = 0
+    } else {
+      freqLutS[k] = freqLutS[k - 1]! + Math.hypot(px - freqLutX[k - 1]!, py - freqLutY[k - 1]!)
+    }
+  }
+
+  freqLutTotalLen = Math.max(1, freqLutS[FREQ_LUT_STEPS]!)
+  // k = 240 is theta = 0 on the Right U-turn (exact right screen boundary)
+  freqSnakeMaxLen = Math.max(40, freqLutS[240]!)
+}
+
+function sampleStage3TrackAtArc(sDist: number): [number, number] {
+  const sWrap = ((sDist % freqLutTotalLen) + freqLutTotalLen) % freqLutTotalLen
+  let lo = 0
+  let hi = FREQ_LUT_STEPS
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1
+    if (freqLutS[mid]! <= sWrap) lo = mid
+    else hi = mid
+  }
+  const s0 = freqLutS[lo]!
+  const s1 = freqLutS[hi]!
+  const f = s1 > s0 ? (sWrap - s0) / (s1 - s0) : 0
+  return [
+    freqLutX[lo]! + (freqLutX[hi]! - freqLutX[lo]!) * f,
+    freqLutY[lo]! + (freqLutY[hi]! - freqLutY[lo]!) * f,
+  ]
+}
+
+function updateStage3SnakeSpine(travelPx: number, spanScale = 1) {
+  const maxSpan = Math.max(24, freqSnakeMaxLen * spanScale)
+  const sHead = Math.max(24, travelPx)
+  const sTail = Math.max(0, sHead - maxSpan)
+  const span = Math.max(8, sHead - sTail)
+  freqCurrentLenRatio = clamp01(span / freqSnakeMaxLen)
+
+  for (let k = 0; k <= RIBBON_SAMPLES; k++) {
+    const s = sTail + span * (k / RIBBON_SAMPLES)
+    const [px, py] = sampleStage3TrackAtArc(s)
+    stage3SpineX[k] = px
+    stage3SpineY[k] = py
+  }
+
+  for (let k = 0; k <= RIBBON_SAMPLES; k++) {
+    const prev = k === 0 ? 0 : k - 1
+    const next = k === RIBBON_SAMPLES ? RIBBON_SAMPLES : k + 1
+    const dx = stage3SpineX[next]! - stage3SpineX[prev]!
+    const dy = stage3SpineY[next]! - stage3SpineY[prev]!
+    const len = Math.hypot(dx, dy) || 1
+    stage3NormX[k] = -dy / len
+    stage3NormY[k] = dx / len
+  }
+}
+
+function sampleActiveSpine(uTarget: number, growU: number): [number, number] {
+  const idxFloat = growU > 0.0001 ? clamp01(uTarget / growU) * RIBBON_SAMPLES : 0
+  const k0 = Math.min(RIBBON_SAMPLES - 1, Math.floor(idxFloat))
+  const frac = idxFloat - k0
+  return [
+    sampleX[k0]! + (sampleX[k0 + 1]! - sampleX[k0]!) * frac,
+    sampleY[k0]! + (sampleY[k0 + 1]! - sampleY[k0]!) * frac,
+  ]
+}
+
 function sampleCatmullRomFrom(arrX: Float64Array, arrY: Float64Array, u: number): [number, number] {
   const clamped = Math.max(0, Math.min(0.999999, u))
   const scaled = clamped * 4
@@ -326,12 +481,26 @@ function sampleCatmullRomScratch(u: number): [number, number] {
   return sampleCatmullRomFrom(wx, wy, u)
 }
 
-function populateSpineAndNormals(clickImpulse: number, nowSec: number, growU: number) {
+function populateSpineAndNormals(
+  clickImpulse: number,
+  nowSec: number,
+  growU: number,
+  uFreq = 0,
+  freqOffset = 0
+) {
   for (let k = 0; k <= RIBBON_SAMPLES; k++) {
     const u = (k / RIBBON_SAMPLES) * growU
     const [px, py] = sampleCatmullRomScratch(u)
-    sampleX[k] = px
-    sampleY[k] = py
+    if (uFreq <= 0.0001) {
+      sampleX[k] = px
+      sampleY[k] = py
+    } else {
+      const env = Math.sin(Math.PI * (k / RIBBON_SAMPLES))
+      const fx = stage3SpineX[k]! + stage3NormX[k]! * freqOffset * env
+      const fy = stage3SpineY[k]! + stage3NormY[k]! * freqOffset * env
+      sampleX[k] = px + (fx - px) * uFreq
+      sampleY[k] = py + (fy - py) * uFreq
+    }
   }
 
   for (let k = 0; k <= RIBBON_SAMPLES; k++) {
@@ -345,10 +514,11 @@ function populateSpineAndNormals(clickImpulse: number, nowSec: number, growU: nu
   }
 
   if (clickImpulse > 0.005) {
+    const rippleCycles = 3.5 + uFreq * 3.0
     for (let k = 1; k < RIBBON_SAMPLES; k++) {
       const u = k / RIBBON_SAMPLES
       const ripple =
-        Math.sin(u * Math.PI * 3.5 - nowSec * 14) *
+        Math.sin(u * Math.PI * rippleCycles - nowSec * 14) *
         Math.sin(Math.PI * u) *
         clickImpulse *
         6.5
@@ -358,10 +528,15 @@ function populateSpineAndNormals(clickImpulse: number, nowSec: number, growU: nu
   }
 }
 
-function buildTaperedRibbonFromSpine(peakHalfWidth: number, cometBlend = 0): string {
+function buildTaperedRibbonFromSpine(
+  peakHalfWidth: number,
+  cometBlend = 0,
+  freqBlend = 0
+): string {
   let d = `M ${sampleX[0]!.toFixed(1)} ${sampleY[0]!.toFixed(1)}`
   for (let k = 1; k < RIBBON_SAMPLES; k++) {
-    const env = taperEnv[k]! + (cometTaperEnv[k]! - taperEnv[k]!) * cometBlend
+    const s2Env = taperEnv[k]! + (cometTaperEnv[k]! - taperEnv[k]!) * cometBlend
+    const env = s2Env + (freqTaperEnv[k]! - s2Env) * freqBlend
     const hw = peakHalfWidth * env
     const lx = sampleX[k]! + normX[k]! * hw
     const ly = sampleY[k]! + normY[k]! * hw
@@ -369,7 +544,8 @@ function buildTaperedRibbonFromSpine(peakHalfWidth: number, cometBlend = 0): str
   }
   d += ` L ${sampleX[RIBBON_SAMPLES]!.toFixed(1)} ${sampleY[RIBBON_SAMPLES]!.toFixed(1)}`
   for (let k = RIBBON_SAMPLES - 1; k >= 1; k--) {
-    const env = taperEnv[k]! + (cometTaperEnv[k]! - taperEnv[k]!) * cometBlend
+    const s2Env = taperEnv[k]! + (cometTaperEnv[k]! - taperEnv[k]!) * cometBlend
+    const env = s2Env + (freqTaperEnv[k]! - s2Env) * freqBlend
     const hw = peakHalfWidth * env
     const rx = sampleX[k]! - normX[k]! * hw
     const ry = sampleY[k]! - normY[k]! * hw
@@ -390,7 +566,7 @@ function buildTaperedSpindle(
 
   for (let k = 0; k <= SPINDLE_SAMPLES; k++) {
     const u = uStart + (uEnd - uStart) * (k / SPINDLE_SAMPLES)
-    const [px, py] = sampleCatmullRomScratch(u)
+    const [px, py] = sampleActiveSpine(u, maxU)
     spX[k] = px
     spY[k] = py
   }
@@ -418,15 +594,24 @@ function buildTaperedSpindle(
   return `${d} Z`
 }
 
-function spotEnvelopeAlpha(u: number, contactProg = 0, cometBlend = 0): number {
-  const baseHeadFade = u < 0.12 ? (u / 0.12) * 0.96 : 0.96
-  const cometTailFade = Math.pow(clamp01(u), 1.6) * 0.96
-  const headFade = baseHeadFade + (cometTailFade - baseHeadFade) * cometBlend
-  if (u > 0.88) {
-    const tailFloor = contactProg * 0.75
-    return Math.max(tailFloor, ((1 - u) / 0.12) * 0.96)
-  }
-  return headFade
+function spotEnvelopeAlpha(
+  u: number,
+  contactProg = 0,
+  cometBlend = 0,
+  freqBlend = 0
+): number {
+  const cu = clamp01(u)
+  const baseHeadFade = cu < 0.12 ? (cu / 0.12) * 0.96 : 0.96
+  const cometTailFade = Math.pow(cu, 1.6) * 0.96
+  const s2Fade = baseHeadFade + (cometTailFade - baseHeadFade) * cometBlend
+  const s2Out = cu > 0.88 ? Math.max(contactProg * 0.75, ((1 - cu) / 0.12) * 0.96) : s2Fade
+
+  if (freqBlend <= 0.001) return s2Out
+
+  const freqIn = cu < 0.18 ? (cu / 0.18) * 0.94 : 0.94
+  const freqOut = cu > 0.92 ? ((1 - cu) / 0.08) * 0.94 : freqIn
+  const freqScale = 0.25 + 0.75 * freqCurrentLenRatio
+  return s2Out + (freqOut * freqScale - s2Out) * freqBlend
 }
 
 function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
@@ -454,26 +639,49 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
 
   const mProg = clamp01(stageProg)
   const uMotion = smoothstep01(mProg)
+  const fProg = clamp01((stageProg - 1.34) / 0.24)
+  const uFreq = smoothstep01(fProg)
 
   if (uMotion <= 0.001) {
     stage2RoamSec = 0
   } else {
-    const roamDrive = smoothstep01((uMotion - 0.78) / 0.22)
+    const roamDrive = smoothstep01((uMotion - 0.78) / 0.22) * (1 - uFreq * 0.65)
     stage2RoamSec += dtSec * STAGE2_ROAM_TEMPO * (0.15 + 0.85 * roamDrive)
   }
 
-  let activePulseX = spoutX
-  let activePulseY = spoutY
+  let s2HeadX = spoutX
+  let s2HeadY = spoutY
   if (mProg > 0.0001) {
     updateStage2CometSpine(uMotion, stage2RoamSec, w, svh, spoutX, spoutY, portrait)
-    activePulseX = cometSpineX[4]!
-    activePulseY = cometSpineY[4]!
+    s2HeadX = cometSpineX[4]!
+    s2HeadY = cometSpineY[4]!
   }
 
-  const cometWidthScale = 1 - uMotion * 0.28
-  const bundleSheathGain = 1 - uMotion * 0.66
-  const bundleCoreGain = 1 - uMotion * 0.64
-  const bundleSpotGain = 1 - uMotion * 0.62
+  let activePulseX = s2HeadX
+  let activePulseY = s2HeadY
+
+  if (fProg <= 0.002) {
+    stage3TravelPx = 0
+    freqCurrentLenRatio = 0
+  } else {
+    ensureStage3TrackLut(w, svh, tel.fieldLeft, portrait)
+    const waveSpanScale = smoothstep01((stageProg - 1.45) / 0.13)
+    if (stageProg >= 1.5) {
+      const snakeSpeed = portrait ? w * 0.34 : Math.max(185, tel.fieldWidth * 0.28)
+      const snakeDrive = smoothstep01((stageProg - 1.49) / 0.09)
+      stage3TravelPx += dtSec * snakeSpeed * (1 + clickImpulse * 0.65) * snakeDrive
+    }
+    updateStage3SnakeSpine(stage3TravelPx, waveSpanScale)
+    const s3HeadX = stage3SpineX[RIBBON_SAMPLES]!
+    const s3HeadY = stage3SpineY[RIBBON_SAMPLES]!
+    activePulseX = s2HeadX + (s3HeadX - s2HeadX) * uFreq
+    activePulseY = s2HeadY + (s3HeadY - s2HeadY) * uFreq
+  }
+
+  const cometWidthScale = 1 - uMotion * 0.28 - uFreq * 0.16
+  const bundleSheathGain = 1 - uMotion * 0.66 - uFreq * 0.08
+  const bundleCoreGain = 1 - uMotion * 0.64 - uFreq * 0.06
+  const bundleSpotGain = 1 - uMotion * 0.62 - uFreq * 0.04
 
   const scrollFlowBoost = Math.sin(Math.PI * heroProg) * 0.55
   const speedBoost = 1 + hoverPull * 0.88 + clickImpulse * 2.1 + scrollFlowBoost
@@ -574,8 +782,8 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
           dyArr[k] = s1y[k]! + (cTargetY - s1y[k]!) * strandBraid
         }
 
-        dxArr[4] = activePulseX
-        dyArr[4] = activePulseY
+        dxArr[4] = s2HeadX
+        dyArr[4] = s2HeadY
       }
 
       const preGapX = (portrait ? 14 : 22) + Math.abs(spec.stage1Fan) * (portrait ? 12 : 20)
@@ -619,7 +827,9 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
       }
     }
 
-    populateSpineAndNormals(clickImpulse, nowSec, growU)
+    const freqMicroOffset =
+      spec.stage1Fan * 0.85 + Math.sin(nowSec * spec.driftFreq + spec.driftPhase) * 0.35
+    populateSpineAndNormals(clickImpulse, nowSec, growU, uFreq, freqMicroOffset)
 
     const introFade = Math.min(1, growU / 0.28)
     const funnelRefine = (1 - heroProg * 0.28) * cometWidthScale
@@ -627,7 +837,10 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
 
     const sheathEl = sheathPathEls[i]
     if (sheathEl) {
-      sheathEl.setAttribute('d', buildTaperedRibbonFromSpine(spec.maxWidth * 3.2 * funnelRefine, uMotion))
+      sheathEl.setAttribute(
+        'd',
+        buildTaperedRibbonFromSpine(spec.maxWidth * 3.2 * funnelRefine, uMotion, uFreq)
+      )
       sheathEl.style.opacity = Math.min(
         0.65,
         spec.sheathOpacity * sheathRefine * glowBoost * introFade * bundleSheathGain
@@ -636,13 +849,18 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
 
     const coreEl = corePathEls[i]
     if (coreEl) {
-      coreEl.setAttribute('d', buildTaperedRibbonFromSpine(spec.maxWidth * 0.55 * funnelRefine, uMotion))
-      coreEl.style.opacity = Math.min(1, spec.coreOpacity * glowBoost * introFade * bundleCoreGain).toFixed(2)
+      coreEl.setAttribute(
+        'd',
+        buildTaperedRibbonFromSpine(spec.maxWidth * 0.55 * funnelRefine, uMotion, uFreq)
+      )
+      coreEl.style.opacity = Math.min(
+        1,
+        spec.coreOpacity * glowBoost * introFade * bundleCoreGain
+      ).toFixed(2)
     }
 
-    // During intro growth, bright spot rides the leading head inward before settling into continuous phase
     const activePhase = growU < 0.995 ? growU * 0.92 : p1Phase
-    const p1Alpha = spotEnvelopeAlpha(activePhase, kissEase, uMotion) * introFade * bundleSpotGain
+    const p1Alpha = spotEnvelopeAlpha(activePhase, kissEase, uMotion, uFreq) * introFade * bundleSpotGain
 
     const spindleEl = spindlePathEls[i]
     if (spindleEl) {
@@ -660,8 +878,8 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
 
     const pSpotEl = primarySpotEls[i]
     if (pSpotEl) {
-      const [sx, sy] = sampleCatmullRomScratch(activePhase)
-      const convergeSpotScale = spotScale * (1 - heroProg * 0.16)
+      const [sx, sy] = sampleActiveSpine(activePhase, growU)
+      const convergeSpotScale = spotScale * (1 - heroProg * 0.16) * (1 - uFreq * 0.22)
       pSpotEl.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0) scale(${convergeSpotScale.toFixed(3)})`
       pSpotEl.style.opacity = Math.min(1, p1Alpha * glowBoost).toFixed(2)
     }
@@ -673,12 +891,12 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
         const p2Alpha =
           growU < 0.65
             ? 0
-            : spotEnvelopeAlpha(p2Phase, kissEase, uMotion) *
+            : spotEnvelopeAlpha(p2Phase, kissEase, uMotion, uFreq) *
               0.85 *
               ((growU - 0.65) / 0.35) *
               bundleSpotGain
-        const [sx2, sy2] = sampleCatmullRomScratch(p2Phase)
-        const convergeSpotScale = spotScale * (1 - heroProg * 0.18)
+        const [sx2, sy2] = sampleActiveSpine(p2Phase, growU)
+        const convergeSpotScale = spotScale * (1 - heroProg * 0.18) * (1 - uFreq * 0.22)
         sSpotEl.style.transform = `translate3d(${sx2.toFixed(1)}px, ${sy2.toFixed(1)}px, 0) scale(${convergeSpotScale.toFixed(3)})`
         sSpotEl.style.opacity = Math.min(1, p2Alpha * glowBoost).toFixed(2)
       }
@@ -687,7 +905,7 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
     if (spec.hasTerminalGlow) {
       const tipEl = tipGlowEls[i]
       if (tipEl) {
-        const [tx, ty] = sampleCatmullRomScratch(growU)
+        const [tx, ty] = sampleActiveSpine(growU, growU)
         const tipPulse = p1Phase > 0.78 ? Math.sin(((p1Phase - 0.78) / 0.22) * Math.PI) * 0.35 : 0
         const tipFade = (1 - kissEase * 0.85) * introFade
         tipEl.style.transform = `translate3d(${tx.toFixed(1)}px, ${ty.toFixed(1)}px, 0) scale(${spotScale.toFixed(3)})`
@@ -701,15 +919,15 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
     if (contactProg <= 0.001) {
       pulseGroupEl.value.style.opacity = '0'
     } else {
-      const freqOscY =
-        stageProg > 1 ? Math.sin(nowSec * 3.2) * Math.min(1, stageProg - 1) * 14 : 0
       const pulseX = activePulseX
-      const pulseY = activePulseY + freqOscY
+      const pulseY = activePulseY
 
       const breathe = 1 + Math.sin(nowSec * 2.3) * 0.045
-      const coreScale = (0.22 + 0.78 * kissEase) * breathe * (1 + clickImpulse * 0.28)
+      const stage3CoreShrink = 1 - uFreq * 0.56
+      const coreScale = (0.22 + 0.78 * kissEase) * breathe * stage3CoreShrink * (1 + clickImpulse * 0.28)
+      const headAlpha = Math.min(1, kissEase * (1 - uFreq * 0.28 + clickImpulse * uFreq * 0.22))
 
-      pulseGroupEl.value.style.opacity = kissEase.toFixed(3)
+      pulseGroupEl.value.style.opacity = headAlpha.toFixed(3)
       pulseGroupEl.value.style.transform = `translate3d(${pulseX.toFixed(1)}px, ${pulseY.toFixed(1)}px, 0) scale(${coreScale.toFixed(3)})`
 
       const rawBaseR = portrait ? Math.min(w, svh) * 0.3 : Math.min(w, svh) * 0.24
@@ -736,27 +954,30 @@ function renderFrame(tel: ConvergentTelemetry, dtSec: number, nowSec: number) {
         const s1Alpha = Math.min(0.62, 0.34 + clickRingBloom * 0.28)
         const s2Alpha = Math.min(0.62, 0.025 + autoBlink1 * 0.3 + clickRingBloom * 0.54)
         ring1El.value.setAttribute('r', (baseR * 0.34 * rExpand1 * ringBreathe1).toFixed(1))
-        ring1El.value.style.opacity = (kissEase * (s1Alpha * (1 - uMotion) + s2Alpha * uMotion)).toFixed(3)
+        ring1El.value.style.opacity = (kissEase * (s1Alpha * (1 - uMotion) + s2Alpha * uMotion) * (1 - uFreq)).toFixed(3)
       }
       if (ring2El.value) {
         const ringBreathe2 = 1 + Math.cos(nowSec * 1.45) * 0.024
         const s1Alpha = Math.min(0.46, 0.22 + clickRingBloom * 0.22)
         const s2Alpha = Math.min(0.46, 0.015 + autoBlink2 * 0.21 + clickRingBloom * 0.4)
         ring2El.value.setAttribute('r', (baseR * 0.64 * rExpand2 * ringBreathe2).toFixed(1))
-        ring2El.value.style.opacity = (kissEase * (s1Alpha * (1 - uMotion) + s2Alpha * uMotion)).toFixed(3)
+        ring2El.value.style.opacity = (kissEase * (s1Alpha * (1 - uMotion) + s2Alpha * uMotion) * (1 - uFreq)).toFixed(3)
       }
       if (ring3El.value) {
         const ringBreathe3 = 1 + Math.sin(nowSec * 1.15 + 1) * 0.028
         const s1Alpha = Math.min(0.32, 0.13 + clickRingBloom * 0.16)
         const s2Alpha = Math.min(0.32, 0.008 + autoBlink3 * 0.13 + clickRingBloom * 0.28)
         ring3El.value.setAttribute('r', (baseR * 0.98 * rExpand3 * ringBreathe3).toFixed(1))
-        ring3El.value.style.opacity = (kissEase * (s1Alpha * (1 - uMotion) + s2Alpha * uMotion)).toFixed(3)
+        ring3El.value.style.opacity = (kissEase * (s1Alpha * (1 - uMotion) + s2Alpha * uMotion) * (1 - uFreq)).toFixed(3)
       }
 
       if (contactWaveEl.value) {
         const waveProg = clickImpulse > 0.01 ? 1 - clickImpulse : contactProg
         if (waveProg > 0.02 && waveProg < 0.99) {
-          contactWaveEl.value.setAttribute('r', (14 + baseR * 0.85 * waveProg).toFixed(1))
+          contactWaveEl.value.setAttribute(
+            'r',
+            (14 + baseR * (1 - uFreq * 0.45) * 0.85 * waveProg).toFixed(1)
+          )
           contactWaveEl.value.style.opacity = (Math.sin(Math.PI * waveProg) * 0.45).toFixed(3)
         } else {
           contactWaveEl.value.style.opacity = '0'

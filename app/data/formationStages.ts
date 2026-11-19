@@ -32,10 +32,10 @@ export const FORMATION_STAGES: FormationStageItem[] = [
     number: '03',
     slug: 'frequency',
     title: 'FREQUENCY',
-    lead: '',
-    caption: '',
+    lead: 'As motion repeats, it finds a frequency.',
+    caption: 'A rhythm distinctly its own.',
     dateLabel: 'NOV 19 · 2026',
-    unlocked: false,
+    unlocked: true,
   },
   {
     number: '04',

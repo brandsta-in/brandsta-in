@@ -61,6 +61,20 @@ function splitWords(text: string): string[] {
   return text.trim() ? text.trim().split(/\s+/) : []
 }
 
+function titleSizeClass(title: string): string {
+  const len = title.trim().length
+  if (len >= 12) {
+    return 'text-[1.9rem] 2xs:text-[2.15rem] sm:text-[2.95rem] lg:text-[2.5rem] xl:text-[3.25rem] 2xl:text-[3.85rem] [@media(max-height:520px)]:text-[1.65rem]'
+  }
+  if (len >= 10) {
+    return 'text-[2.25rem] 2xs:text-[2.55rem] sm:text-[3.5rem] lg:text-[2.95rem] xl:text-[3.85rem] 2xl:text-[4.45rem] [@media(max-height:520px)]:text-[1.95rem]'
+  }
+  if (len >= 8) {
+    return 'text-[2.65rem] 2xs:text-[3.05rem] sm:text-[4.15rem] lg:text-[3.6rem] xl:text-[4.65rem] 2xl:text-[5.3rem] [@media(max-height:520px)]:text-[2.25rem]'
+  }
+  return 'text-[3.15rem] 2xs:text-[3.65rem] sm:text-[4.85rem] lg:text-[5.5rem] xl:text-[6.25rem] [@media(max-height:520px)]:text-[2.55rem]'
+}
+
 function whisperPositionClass(idx: number): string {
   if (idx === stages.length - 1) return 'right-1.5 justify-end'
   if (idx === 0) return 'left-1.5 justify-start'
@@ -183,7 +197,8 @@ onUnmounted(() => {
 
               <h2
                 :aria-label="activeStage.title"
-                class="mt-1.5 sm:mt-3 inline-flex flex-wrap text-[3.15rem] 2xs:text-[3.65rem] sm:text-[4.85rem] lg:text-[5.5rem] xl:text-[6.25rem] font-bold uppercase leading-[0.95] tracking-[-0.02em] text-white select-none [@media(max-height:520px)]:mt-1 [@media(max-height:520px)]:text-[2.55rem]"
+                class="mt-1.5 sm:mt-3 inline-flex whitespace-nowrap font-bold uppercase leading-[0.95] tracking-[-0.02em] text-white select-none [@media(max-height:520px)]:mt-1"
+                :class="titleSizeClass(activeStage.title)"
               >
                 <span
                   v-for="(ch, charIdx) in splitChars(activeStage.title)"
