@@ -64,13 +64,16 @@ function splitWords(text: string): string[] {
 function titleSizeClass(title: string): string {
   const len = title.trim().length
   if (len >= 12) {
-    return 'text-[1.9rem] 2xs:text-[2.15rem] sm:text-[2.95rem] lg:text-[2.5rem] xl:text-[3.25rem] 2xl:text-[3.85rem] [@media(max-height:520px)]:text-[1.65rem]'
+    return 'text-[2.1rem] 2xs:text-[2.4rem] sm:text-[3.35rem] lg:text-[2.8rem] xl:text-[3.65rem] 2xl:text-[4.25rem] [@media(max-height:520px)]:text-[1.85rem]'
   }
   if (len >= 10) {
     return 'text-[2.25rem] 2xs:text-[2.55rem] sm:text-[3.5rem] lg:text-[2.95rem] xl:text-[3.85rem] 2xl:text-[4.45rem] [@media(max-height:520px)]:text-[1.95rem]'
   }
   if (len >= 8) {
     return 'text-[2.65rem] 2xs:text-[3.05rem] sm:text-[4.15rem] lg:text-[3.6rem] xl:text-[4.65rem] 2xl:text-[5.3rem] [@media(max-height:520px)]:text-[2.25rem]'
+  }
+  if (len <= 4) {
+    return 'text-[3.9rem] 2xs:text-[4.5rem] sm:text-[5.9rem] lg:text-[6.5rem] xl:text-[7.6rem] 2xl:text-[8.6rem] [@media(max-height:520px)]:text-[3rem]'
   }
   return 'text-[3.15rem] 2xs:text-[3.65rem] sm:text-[4.85rem] lg:text-[5.5rem] xl:text-[6.25rem] [@media(max-height:520px)]:text-[2.55rem]'
 }
@@ -253,6 +256,77 @@ onUnmounted(() => {
                   }"
                 >{{ word }}</span>
               </p>
+              <div
+                v-if="activeStage.launchDate"
+                :aria-label="`${activeStage.launchText ?? ''} ${activeStage.launchDate} ${activeStage.launchTime ?? ''}`.trim()"
+                class="mt-5 sm:mt-6 [@media(max-height:520px)]:mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.7rem] 2xs:text-[0.75rem] sm:text-[0.82rem] uppercase tabular-nums font-medium select-none"
+              >
+                <span
+                  v-if="activeStage.launchText"
+                  aria-hidden="true"
+                  class="inline-flex items-center text-[#388bff] font-semibold"
+                >
+                  <span
+                    v-for="(ch, lIdx) in splitChars(activeStage.launchText)"
+                    :key="`${activeStage.slug}-lt-${lIdx}`"
+                    class="wave-unit stage-stagger-unit inline-block whitespace-pre mr-[0.26em] last:mr-0"
+                    :style="{
+                      '--enter-y': '12px',
+                      '--stagger-ms': `${FORMATION_CHOREOGRAPHY.captionStartMs + 210 + lIdx * 24}ms`,
+                      '--stage-stagger-ms': `${FORMATION_CHOREOGRAPHY.switchCaptionStartMs + 180 + lIdx * 20}ms`,
+                    }"
+                  >
+                    <span
+                      class="arrival-char-pulse arrival-char-pulse--label inline-block"
+                      :style="{ animationDelay: `${900 + lIdx * 75}ms` }"
+                    >{{ ch === ' ' ? '\u00A0' : ch }}</span>
+                  </span>
+                </span>
+
+                <span aria-hidden="true" class="inline-flex items-center text-white/85">
+                  <span
+                    v-for="(ch, dIdx) in splitChars(activeStage.launchDate)"
+                    :key="`${activeStage.slug}-ld-${dIdx}`"
+                    class="wave-unit stage-stagger-unit inline-block whitespace-pre mr-[0.22em] last:mr-0"
+                    :style="{
+                      '--enter-y': '12px',
+                      '--stagger-ms': `${FORMATION_CHOREOGRAPHY.captionStartMs + 210 + ((activeStage.launchText?.length ?? 0) + dIdx) * 24}ms`,
+                      '--stage-stagger-ms': `${FORMATION_CHOREOGRAPHY.switchCaptionStartMs + 180 + ((activeStage.launchText?.length ?? 0) + dIdx) * 20}ms`,
+                    }"
+                  >
+                    <span
+                      class="arrival-char-pulse arrival-char-pulse--date inline-block"
+                      :style="{
+                        animationDelay: `${900 + ((activeStage.launchText?.length ?? 0) + dIdx) * 75}ms`,
+                      }"
+                    >{{ ch === ' ' ? '\u00A0' : ch }}</span>
+                  </span>
+                </span>
+
+                <span
+                  v-if="activeStage.launchTime"
+                  aria-hidden="true"
+                  class="inline-flex items-center text-white/70"
+                >
+                  <span
+                    v-for="(ch, tIdx) in splitChars(activeStage.launchTime)"
+                    :key="`${activeStage.slug}-ltm-${tIdx}`"
+                    class="wave-unit stage-stagger-unit inline-block whitespace-pre mr-[0.24em] last:mr-0"
+                    :style="{
+                      '--enter-y': '12px',
+                      '--stagger-ms': `${FORMATION_CHOREOGRAPHY.captionStartMs + 210 + ((activeStage.launchText?.length ?? 0) + activeStage.launchDate.length + tIdx) * 24}ms`,
+                      '--stage-stagger-ms': `${FORMATION_CHOREOGRAPHY.switchCaptionStartMs + 180 + ((activeStage.launchText?.length ?? 0) + activeStage.launchDate.length + tIdx) * 20}ms`,
+                    }"
+                  >
+                    <span
+                      class="arrival-char-pulse arrival-char-pulse--time inline-block"
+                      :style="{
+                        animationDelay: `${900 + ((activeStage.launchText?.length ?? 0) + activeStage.launchDate.length + tIdx) * 75}ms`,
+                      }"
+                    >{{ ch === ' ' ? '\u00A0' : ch }}</span>
+                  </span>
+                </span>
+              </div>
             </article>
           </Transition>
         </div>
@@ -651,6 +725,69 @@ onUnmounted(() => {
   100% {
     opacity: 0;
     transform: scaleX(0);
+  }
+}
+
+.arrival-char-pulse {
+  will-change: transform, opacity;
+  animation-duration: 4.6s;
+  animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1);
+  animation-iteration-count: infinite;
+}
+
+.arrival-char-pulse--label {
+  animation-name: arrivalLabelResonance;
+}
+
+.arrival-char-pulse--date {
+  animation-name: arrivalDateResonance;
+}
+
+.arrival-char-pulse--time {
+  animation-name: arrivalTimeResonance;
+}
+
+@keyframes arrivalLabelResonance {
+  0%, 66%, 100% {
+    opacity: 0.86;
+    transform: translate3d(0, 0, 0);
+    text-shadow: 0 0 0 rgba(56, 139, 255, 0);
+  }
+  26% {
+    opacity: 1;
+    transform: translate3d(0, -1px, 0);
+    color: #6cb0ff;
+    text-shadow: 0 0 12px rgba(56, 139, 255, 0.52);
+  }
+}
+
+@keyframes arrivalDateResonance {
+  0%, 66%, 100% {
+    opacity: 0.8;
+    transform: translate3d(0, 0, 0);
+  }
+  26% {
+    opacity: 1;
+    transform: translate3d(0, -0.75px, 0);
+    color: #ffffff;
+  }
+}
+
+@keyframes arrivalTimeResonance {
+  0%, 66%, 100% {
+    opacity: 0.68;
+    transform: translate3d(0, 0, 0);
+  }
+  26% {
+    opacity: 0.98;
+    transform: translate3d(0, -0.75px, 0);
+    color: #fde08d;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arrival-char-pulse {
+    animation: none !important;
   }
 }
 

@@ -6,6 +6,9 @@ export interface FormationStageItem {
   lead: string
   caption: string
   dateLabel: string
+  launchText?: string
+  launchDate?: string
+  launchTime?: string
   unlocked: boolean
 }
 
@@ -41,36 +44,39 @@ export const FORMATION_STAGES: FormationStageItem[] = [
     number: '04',
     slug: 'interaction',
     title: 'INTERACTION',
-    lead: '',
-    caption: '',
+    lead: 'Frequencies don’t exist in isolation.',
+    caption: 'When signals meet, they influence one another.',
     dateLabel: 'NOV 20 · 2026',
-    unlocked: false,
+    unlocked: true,
   },
   {
     number: '05',
-    slug: 'stage-05',
-    title: '',
-    lead: '',
-    caption: '',
+    slug: 'resonance',
+    title: 'RESONANCE',
+    lead: 'Interaction creates resonance.',
+    caption: 'What moves together becomes stronger together.',
     dateLabel: 'NOV 21 · 2026',
     unlocked: false,
   },
   {
     number: '06',
-    slug: 'stage-06',
-    title: '',
-    lead: '',
-    caption: '',
+    slug: 'amplification',
+    title: 'AMPLIFICATION',
+    lead: 'Within a designed enclosure, resonance creates amplification.',
+    caption: 'What was once faint finds its intensity.',
     dateLabel: 'NOV 22 · 2026',
     unlocked: false,
   },
   {
     number: '07',
-    slug: 'stage-07',
-    title: '',
-    lead: '',
-    caption: '',
+    slug: 'wave',
+    title: 'WAVE',
+    lead: 'It began with a pulse.',
+    caption: 'It propagates as a wave.',
     dateLabel: 'NOV 23 · 2026',
+    launchText: 'ARRIVAL',
+    launchDate: '24 · 11 · 26',
+    launchTime: '21:00',
     unlocked: false,
   },
 ]
