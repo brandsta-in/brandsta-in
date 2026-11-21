@@ -1,11 +1,18 @@
 <!-- app/pages/index.vue -->
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useBrandstaSeo } from '~/composables/useBrandstaSeo'
 import { useConvergentScroll, type ConvergentTelemetry } from '~/composables/useConvergentScroll'
 import { HERO_CHOREOGRAPHY } from '~/data/heroChoreography'
 import ConvergentSignalEngine from '~/components/ConvergentSignalEngine.vue'
 import FormationSlider from '~/components/FormationSlider.vue'
+
+type InputModality = 'desktop' | 'touch' | 'hybrid'
+
+interface CueToken {
+  text: string
+  action?: 'scroll' | 'pulse'
+}
 
 useBrandstaSeo({
   title: 'Brandsta | Something is forming.',
@@ -20,7 +27,7 @@ const {
   triggerFormingPulse,
 } = useConvergentScroll()
 
-const PREVIEW_CHARS = 'PREVIEW'.split('')
+const ORIGIN_CHARS = 'ORIGIN'.split('')
 const SOMETHING_CHARS = 'Something'.split('')
 const IS_CHARS = 'is'.split('')
 const FORMING_CHARS = 'forming.'.split('')
@@ -30,14 +37,132 @@ const LEAD_LINE_2_WORDS = 'Follow its journey.'.split(' ')
 const FORMING_FLASH_DELAY_MS =
   HERO_CHOREOGRAPHY.formingStartMs +
   (FORMING_CHARS.length - 1) * HERO_CHOREOGRAPHY.formingCharStaggerMs -
-  40
+  Math.round(40 * HERO_CHOREOGRAPHY.tempoScale)
 
 const heroStackEl = ref<HTMLDivElement | null>(null)
 const scrollCueEl = ref<HTMLButtonElement | null>(null)
 const isFormingActive = ref(false)
+const isCueHovered = ref(false)
+const isSurfacePulsing = ref(false)
+const inputModality = ref<InputModality>('desktop')
+
+const clickRipple = ref<{ active: boolean; x: number; y: number; id: number }>({
+  active: false,
+  x: 0,
+  y: 0,
+  id: 0,
+})
+
+const cueTokens = computed<CueToken[]>(() => {
+  if (inputModality.value === 'hybrid') {
+    return [
+      { text: 'SCROLL,', action: 'scroll' },
+      { text: 'SWIPE', action: 'scroll' },
+      { text: 'OR' },
+      { text: 'CLICK', action: 'pulse' },
+      { text: 'TO' },
+      { text: 'WITNESS' },
+      { text: 'THE' },
+      { text: 'FORMATION' },
+    ]
+  }
+  if (inputModality.value === 'touch') {
+    return [
+      { text: 'SWIPE', action: 'scroll' },
+      { text: 'OR' },
+      { text: 'TAP', action: 'pulse' },
+      { text: 'TO' },
+      { text: 'WITNESS' },
+      { text: 'THE' },
+      { text: 'FORMATION' },
+    ]
+  }
+  return [
+    { text: 'SCROLL', action: 'scroll' },
+    { text: 'OR' },
+    { text: 'CLICK', action: 'pulse' },
+    { text: 'TO' },
+    { text: 'WITNESS' },
+    { text: 'THE' },
+    { text: 'FORMATION' },
+  ]
+})
+
+const cueAriaLabel = computed(() => cueTokens.value.map((t) => t.text).join(' '))
+
+function cueTokenDelayMs(idx: number, total: number): number {
+  const center = (total - 1) / 2
+  const distFromCenter = Math.abs(idx - center)
+  return (
+    HERO_CHOREOGRAPHY.interactionCueStartMs +
+    Math.round(distFromCenter * HERO_CHOREOGRAPHY.interactionCueTokenStaggerMs * 2)
+  )
+}
 
 let cleanupScroll: (() => void) | null = null
 let unsubscribeHeroTick: (() => void) | null = null
+let pulseEchoTimer: ReturnType<typeof setTimeout> | null = null
+let rippleHideTimer: ReturnType<typeof setTimeout> | null = null
+
+function detectInputModality(): InputModality {
+  if (typeof window === 'undefined') return 'desktop'
+
+  const hasCoarseAny = window.matchMedia?.('(any-pointer: coarse)').matches ?? false
+  const hasCoarsePrimary = window.matchMedia?.('(pointer: coarse)').matches ?? false
+  const hasFineHover = window.matchMedia?.('(hover: hover) and (pointer: fine)').matches ?? false
+  const hasTouchPoints = (navigator.maxTouchPoints ?? 0) > 0
+
+  if ((hasCoarseAny || hasTouchPoints) && hasFineHover) {
+    return 'hybrid'
+  }
+  if (hasCoarsePrimary && !hasFineHover) {
+    return 'touch'
+  }
+  return 'desktop'
+}
+
+function spawnClickRipple(clientX?: number, clientY?: number) {
+  if (typeof clientX !== 'number' || typeof clientY !== 'number') return
+  if (clientX === 0 && clientY === 0) return
+
+  if (rippleHideTimer) clearTimeout(rippleHideTimer)
+  clickRipple.value = {
+    active: true,
+    x: clientX,
+    y: clientY,
+    id: clickRipple.value.id + 1,
+  }
+  rippleHideTimer = setTimeout(() => {
+    clickRipple.value.active = false
+  }, 540)
+}
+
+function triggerSurfaceResonance(clientX?: number, clientY?: number) {
+  triggerFormingPulse()
+  spawnClickRipple(clientX, clientY)
+
+  isSurfacePulsing.value = false
+  if (pulseEchoTimer) clearTimeout(pulseEchoTimer)
+
+  requestAnimationFrame(() => {
+    isSurfacePulsing.value = true
+    pulseEchoTimer = setTimeout(() => {
+      isSurfacePulsing.value = false
+    }, 380)
+  })
+}
+
+function onRootSurfaceClick(e: MouseEvent) {
+  const target = e.target as HTMLElement | null
+  if (!target) return
+
+  // Skip buttons/links and FormationSlider's visual col (which already fires triggerFormingPulse)
+  if (target.closest('button, a, [role="button"], .formation-visual-col')) {
+    return
+  }
+
+  triggerSurfaceResonance(e.clientX, e.clientY)
+}
 
 function onFormingEnter() {
   isFormingActive.value = true
@@ -46,11 +171,33 @@ function onFormingEnter() {
 
 function onFormingLeave() {
   isFormingActive.value = false
-  setFormingHovered(false)
+  if (!isCueHovered.value) {
+    setFormingHovered(false)
+  }
 }
 
-function onFormingClick() {
-  triggerFormingPulse()
+function onFormingClick(e?: MouseEvent) {
+  triggerSurfaceResonance(e?.clientX, e?.clientY)
+}
+
+function onCueEnter() {
+  isCueHovered.value = true
+  setFormingHovered(true)
+}
+
+function onCueLeave() {
+  isCueHovered.value = false
+  if (!isFormingActive.value) {
+    setFormingHovered(false)
+  }
+}
+
+function onCueTokenClick(action: 'scroll' | 'pulse', e: MouseEvent) {
+  if (action === 'scroll') {
+    scrollToFormation()
+    return
+  }
+  triggerSurfaceResonance(e.clientX, e.clientY)
 }
 
 function updateHeroScrollParallax(tel: ConvergentTelemetry) {
@@ -72,12 +219,21 @@ function updateHeroScrollParallax(tel: ConvergentTelemetry) {
 }
 
 onMounted(() => {
+  inputModality.value = detectInputModality()
   cleanupScroll = mountScrollEngine()
   unsubscribeHeroTick = onScrollTick(updateHeroScrollParallax)
 })
 
 onUnmounted(() => {
   setFormingHovered(false)
+  if (pulseEchoTimer) {
+    clearTimeout(pulseEchoTimer)
+    pulseEchoTimer = null
+  }
+  if (rippleHideTimer) {
+    clearTimeout(rippleHideTimer)
+    rippleHideTimer = null
+  }
   if (unsubscribeHeroTick) {
     unsubscribeHeroTick()
     unsubscribeHeroTick = null
@@ -90,9 +246,24 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative min-h-svh w-full bg-brand-void">
+  <div
+    class="relative min-h-svh w-full bg-brand-void"
+    @click="onRootSurfaceClick"
+  >
     <!-- Persistent Unified Signal Layer (Black -> Dark Gradient -> 18 Strands -> Star Particles) -->
     <ConvergentSignalEngine />
+
+    <!-- Tactile Bioluminescent Click-Origin Wave Ring (Anywhere Surface Feedback) -->
+    <span
+      v-if="clickRipple.active"
+      :key="clickRipple.id"
+      aria-hidden="true"
+      class="surface-click-ring pointer-events-none fixed left-0 top-0 z-30 h-14 w-14 rounded-full"
+      :style="{
+        '--rx': `${clickRipple.x}px`,
+        '--ry': `${clickRipple.y}px`,
+      }"
+    />
 
     <main class="relative z-10 w-full overflow-x-clip">
       <!-- SECTION 1: 3-ROW CSS GRID HERO -->
@@ -108,13 +279,13 @@ onUnmounted(() => {
           ref="heroStackEl"
           class="relative mx-auto flex w-full max-w-[46rem] flex-col items-center justify-center text-center will-change-transform"
         >
-          <!-- Beat 3 (1480ms -> 1948ms): PREVIEW Writes Letter-by-Letter -->
+          <!-- Beat 3: ORIGIN Writes Letter-by-Letter -->
           <span
-            aria-label="PREVIEW"
+            aria-label="ORIGIN"
             class="mb-6 sm:mb-8 lg:mb-10 inline-flex items-center text-[0.7rem] sm:text-[0.78rem] font-medium uppercase text-white/84 select-none [@media(max-height:520px)]:mb-2.5 [@media(max-height:520px)]:text-[0.62rem]"
           >
             <span
-              v-for="(ch, pIdx) in PREVIEW_CHARS"
+              v-for="(ch, pIdx) in ORIGIN_CHARS"
               :key="`prev-${pIdx}`"
               aria-hidden="true"
               class="char-write inline-block mr-[0.44em] last:mr-0"
@@ -126,7 +297,7 @@ onUnmounted(() => {
             >{{ ch }}</span>
           </span>
 
-          <!-- Beat 4 (1920ms -> 3348ms): Something -> is -> forming. (Momentary Glow Burst & Clean Settle) -->
+          <!-- Beat 4: Something -> is -> forming. (Momentary Glow Burst & Clean Settle) -->
           <h1
             id="formation-heading"
             aria-label="Something is forming."
@@ -167,12 +338,12 @@ onUnmounted(() => {
                 tabindex="0"
                 aria-label="forming. — hover or click to resonate neural strands"
                 class="forming-accent relative inline-flex cursor-pointer text-brand-blue focus:outline-none focus-visible:underline"
-                :class="{ 'is-resonating': isFormingActive }"
+                :class="{ 'is-resonating': isFormingActive || isSurfacePulsing }"
                 @mouseenter="onFormingEnter"
                 @mouseleave="onFormingLeave"
-                @click="onFormingClick"
-                @keydown.enter.prevent="onFormingClick"
-                @keydown.space.prevent="onFormingClick"
+                @click.stop="onFormingClick($event)"
+                @keydown.enter.prevent="onFormingClick()"
+                @keydown.space.prevent="onFormingClick()"
               >
                 <!-- One-Shot Brief Glow Flash on Write Completion (Settles to 0) -->
                 <span
@@ -181,7 +352,7 @@ onUnmounted(() => {
                   :style="{ '--flash-delay': `${FORMING_FLASH_DELAY_MS}ms` }"
                 />
 
-                <!-- Subtle Tight Halo (0 Opacity in Idle — Fades In Gently ONLY on Hover) -->
+                <!-- Subtle Tight Halo (0 Opacity in Idle — Fades In Gently on Hover / Surface Pulse) -->
                 <span
                   aria-hidden="true"
                   class="forming-hover-halo pointer-events-none absolute -inset-x-2.5 -inset-y-1 -z-10 rounded-full"
@@ -200,7 +371,7 @@ onUnmounted(() => {
             </span>
           </h1>
 
-          <!-- Beat 5 (3320ms -> 4152ms): Subtitle Writes Slowly Word-by-Word -->
+          <!-- Beat 5: Subtitle Writes Word-by-Word -->
           <p
             aria-label="Every beginning carries a signal. Follow its journey."
             class="mt-5 sm:mt-7 lg:mt-8 max-w-[26rem] text-[0.96rem] 2xs:text-[1.05rem] sm:text-[1.22rem] xl:text-[1.34rem] font-normal leading-[1.58] tracking-[-0.01em] text-white/84 select-none [@media(max-height:520px)]:mt-2.5 [@media(max-height:520px)]:text-[0.88rem]"
@@ -231,9 +402,88 @@ onUnmounted(() => {
               >{{ word }}</span>
             </span>
           </p>
+
+          <!-- Beat 5B: Signal Horizon Ignition Interactive Cue (Flexbox Center-Outward Unfurl) -->
+          <div
+            :aria-label="cueAriaLabel"
+            data-resonant-hover
+            class="signal-horizon-cue relative mt-6 sm:mt-8 lg:mt-9 inline-flex max-w-full items-center justify-center gap-2.5 sm:gap-4 px-2 py-1.5 select-none [@media(max-height:520px)]:mt-2.5 [@media(max-height:520px)]:py-0.5"
+            :class="{
+              'is-cue-hovered': isCueHovered,
+              'is-cue-pulsing': isSurfacePulsing,
+            }"
+            @mouseenter="onCueEnter"
+            @mouseleave="onCueLeave"
+          >
+            <!-- One-Shot Center-Outward Ignition Aura Flash -->
+            <span
+              aria-hidden="true"
+              class="cue-ignition-flash pointer-events-none absolute -inset-x-6 -inset-y-2 -z-10 rounded-full"
+              :style="{ '--cue-start': `${HERO_CHOREOGRAPHY.interactionCueStartMs}ms` }"
+            />
+
+            <!-- Left Bioluminescent Horizon Filament -->
+            <span
+              aria-hidden="true"
+              class="cue-wing cue-wing--left h-px w-4 2xs:w-6 sm:w-11 shrink-0 origin-right"
+              :style="{
+                '--wing-delay': `${HERO_CHOREOGRAPHY.interactionCueStartMs}ms`,
+                '--wing-dur': `${HERO_CHOREOGRAPHY.interactionCueWingDurationMs}ms`,
+              }"
+            />
+
+            <!-- Center-Outward Igniting Tokens (Interactive Verbs + Architectural Copy) -->
+            <span
+              aria-hidden="true"
+              class="inline-flex flex-wrap items-center justify-center gap-x-[0.52em] gap-y-1 text-[0.58rem] 2xs:text-[0.63rem] sm:text-[0.7rem] font-medium uppercase leading-[1.55] tracking-[0.25em] [@media(max-height:520px)]:text-[0.54rem]"
+            >
+              <template
+                v-for="(token, tIdx) in cueTokens"
+                :key="`${inputModality}-${tIdx}-${token.text}`"
+              >
+                <button
+                  v-if="token.action"
+                  type="button"
+                  data-resonant-hover
+                  class="cue-token-ignite cue-verb-btn relative inline-flex items-center font-semibold text-brand-frost cursor-pointer focus:outline-none focus-visible:text-white"
+                  :style="{
+                    '--tok-delay': `${cueTokenDelayMs(tIdx, cueTokens.length)}ms`,
+                    '--tok-dur': `${HERO_CHOREOGRAPHY.interactionCueTokenDurationMs}ms`,
+                  }"
+                  @click.stop="onCueTokenClick(token.action, $event)"
+                >
+                  <span class="cue-verb-breathe inline-block">{{ token.text }}</span>
+                  <span
+                    aria-hidden="true"
+                    class="cue-verb-underline pointer-events-none absolute -bottom-0.5 inset-x-0 h-px origin-center"
+                  />
+                </button>
+
+                <span
+                  v-else
+                  class="cue-token-ignite inline-block text-white/58 transition-colors duration-300"
+                  :class="{ 'text-white/80': isCueHovered }"
+                  :style="{
+                    '--tok-delay': `${cueTokenDelayMs(tIdx, cueTokens.length)}ms`,
+                    '--tok-dur': `${HERO_CHOREOGRAPHY.interactionCueTokenDurationMs}ms`,
+                  }"
+                >{{ token.text }}</span>
+              </template>
+            </span>
+
+            <!-- Right Bioluminescent Horizon Filament -->
+            <span
+              aria-hidden="true"
+              class="cue-wing cue-wing--right h-px w-4 2xs:w-6 sm:w-11 shrink-0 origin-left"
+              :style="{
+                '--wing-delay': `${HERO_CHOREOGRAPHY.interactionCueStartMs}ms`,
+                '--wing-dur': `${HERO_CHOREOGRAPHY.interactionCueWingDurationMs}ms`,
+              }"
+            />
+          </div>
         </div>
 
-        <!-- Row 3: Beat 6 (4120ms -> 4560ms) Parabolic Triple-Crescent SCROLL Indicator -->
+        <!-- Row 3: Beat 6 Parabolic Triple-Crescent SCROLL Indicator -->
         <div class="flex w-full items-end justify-center self-end">
           <button
             ref="scrollCueEl"
@@ -241,7 +491,7 @@ onUnmounted(() => {
             data-resonant-hover
             aria-label="Scroll into the Formation"
             class="scroll-cue-btn group flex flex-col items-center gap-3 pt-2 pb-1 cursor-pointer select-none focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-electric/60 rounded-md will-change-opacity [@media(max-height:520px)]:gap-1.5 [@media(max-height:520px)]:pb-0"
-            @click="scrollToFormation"
+            @click.stop="scrollToFormation"
           >
             <span
               class="char-write flex flex-col items-center gap-3 [@media(max-height:520px)]:gap-1.5"
@@ -395,6 +645,113 @@ onUnmounted(() => {
   transform: translate3d(0, 0.5px, 0) scale(0.985);
 }
 
+/* Tactile Bioluminescent Click-Origin Ring */
+.surface-click-ring {
+  border: 1px solid color-mix(in srgb, var(--color-brand-ice) 62%, transparent);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--color-brand-electric) 24%, transparent) 0%,
+    transparent 70%
+  );
+  will-change: transform, opacity;
+  animation: surfaceRingExpand 520ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Beat 5B: Signal Horizon Ignition Entrance & Interactive States */
+.cue-ignition-flash {
+  opacity: 0;
+  background: radial-gradient(
+    ellipse 54% 58% at 50% 50%,
+    color-mix(in srgb, var(--color-brand-electric) 28%, transparent) 0%,
+    color-mix(in srgb, var(--color-brand-blue) 10%, transparent) 48%,
+    transparent 76%
+  );
+  will-change: transform, opacity;
+  animation: cueHorizonFlash 640ms cubic-bezier(0.22, 1, 0.36, 1) var(--cue-start, 3800ms) forwards;
+}
+
+.cue-wing {
+  opacity: 0;
+  transform: scaleX(0);
+  will-change: transform, opacity;
+  animation: cueWingUnfurl var(--wing-dur, 540ms) cubic-bezier(0.22, 1, 0.36, 1) var(--wing-delay, 3800ms) forwards;
+  transition:
+    filter 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cue-wing--left {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-brand-blue) 68%, transparent) 52%,
+    var(--color-brand-frost) 100%
+  );
+}
+
+.cue-wing--right {
+  background: linear-gradient(
+    90deg,
+    var(--color-brand-frost) 0%,
+    color-mix(in srgb, var(--color-brand-blue) 68%, transparent) 48%,
+    transparent 100%
+  );
+}
+
+.signal-horizon-cue.is-cue-hovered .cue-wing,
+.signal-horizon-cue.is-cue-pulsing .cue-wing {
+  filter: drop-shadow(0 0 8px var(--color-brand-electric));
+}
+
+.cue-token-ignite {
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: cueTokenIgnite var(--tok-dur, 420ms) cubic-bezier(0.22, 1, 0.36, 1) var(--tok-delay, 3800ms) forwards;
+}
+
+.cue-verb-btn {
+  transition:
+    color 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    text-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cue-verb-breathe {
+  animation: cueVerbAmbient 3.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+
+.cue-verb-underline {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--color-brand-electric) 50%,
+    transparent 100%
+  );
+  opacity: 0.45;
+  transform: scaleX(0.42);
+  transition:
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cue-verb-btn:hover,
+.signal-horizon-cue.is-cue-pulsing .cue-verb-btn {
+  color: #ffffff;
+  transform: translate3d(0, -1px, 0);
+  text-shadow: 0 0 16px color-mix(in srgb, var(--color-brand-electric) 68%, transparent);
+}
+
+.cue-verb-btn:hover .cue-verb-underline,
+.cue-verb-btn:focus-visible .cue-verb-underline,
+.signal-horizon-cue.is-cue-pulsing .cue-verb-underline {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.cue-verb-btn:active {
+  transform: translate3d(0, 0.5px, 0) scale(0.96);
+}
+
 .cue-aura {
   will-change: opacity, transform;
   transform-box: fill-box;
@@ -467,6 +824,74 @@ onUnmounted(() => {
   }
 }
 
+@keyframes surfaceRingExpand {
+  0% {
+    opacity: 0.92;
+    transform: translate3d(calc(var(--rx, 0px) - 50%), calc(var(--ry, 0px) - 50%), 0) scale(0.22);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(var(--rx, 0px) - 50%), calc(var(--ry, 0px) - 50%), 0) scale(1.75);
+  }
+}
+
+@keyframes cueHorizonFlash {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.25) scaleY(0.7);
+  }
+  38% {
+    opacity: 0.95;
+    transform: scaleX(1.04) scaleY(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1.18) scaleY(1.05);
+  }
+}
+
+@keyframes cueWingUnfurl {
+  0% {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  55% {
+    opacity: 1;
+    transform: scaleX(1.08);
+  }
+  100% {
+    opacity: 0.78;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes cueTokenIgnite {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 7px, 0) scale(0.94);
+    filter: brightness(1.85);
+  }
+  50% {
+    opacity: 1;
+    transform: translate3d(0, -0.5px, 0) scale(1.01);
+    filter: brightness(1.35);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes cueVerbAmbient {
+  0% {
+    text-shadow: 0 0 8px color-mix(in srgb, var(--color-brand-blue) 18%, transparent);
+  }
+  100% {
+    text-shadow: 0 0 14px color-mix(in srgb, var(--color-brand-electric) 46%, transparent);
+  }
+}
+
 @keyframes cueAuraBreathe {
   0% {
     opacity: 0.65;
@@ -522,5 +947,4 @@ onUnmounted(() => {
     transform: translate3d(0, 0.5px, 0);
   }
 }
-
 </style>
