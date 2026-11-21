@@ -56,7 +56,7 @@ export const FORMATION_STAGES: FormationStageItem[] = [
     lead: 'Interaction creates resonance.',
     caption: 'What moves together becomes stronger together.',
     dateLabel: 'NOV 21 · 2026',
-    unlocked: false,
+    unlocked: true,
   },
   {
     number: '06',
