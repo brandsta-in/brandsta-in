@@ -423,14 +423,14 @@ onUnmounted(() => {
             />
 
             <!-- Left Bioluminescent Horizon Filament -->
-            <span
+            <!-- <span
               aria-hidden="true"
               class="cue-wing cue-wing--left h-px w-4 2xs:w-6 sm:w-11 shrink-0 origin-right"
               :style="{
                 '--wing-delay': `${HERO_CHOREOGRAPHY.interactionCueStartMs}ms`,
                 '--wing-dur': `${HERO_CHOREOGRAPHY.interactionCueWingDurationMs}ms`,
               }"
-            />
+            /> -->
 
             <!-- Center-Outward Igniting Tokens (Interactive Verbs + Architectural Copy) -->
             <span
@@ -472,14 +472,14 @@ onUnmounted(() => {
             </span>
 
             <!-- Right Bioluminescent Horizon Filament -->
-            <span
+            <!-- <span
               aria-hidden="true"
               class="cue-wing cue-wing--right h-px w-4 2xs:w-6 sm:w-11 shrink-0 origin-left"
               :style="{
                 '--wing-delay': `${HERO_CHOREOGRAPHY.interactionCueStartMs}ms`,
                 '--wing-dur': `${HERO_CHOREOGRAPHY.interactionCueWingDurationMs}ms`,
               }"
-            />
+            /> -->
           </div>
         </div>
 
