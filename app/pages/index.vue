@@ -88,8 +88,6 @@ const cueTokens = computed<CueToken[]>(() => {
   ]
 })
 
-const cueAriaLabel = computed(() => cueTokens.value.map((t) => t.text).join(' '))
-
 function cueTokenDelayMs(idx: number, total: number): number {
   const center = (total - 1) / 2
   const distFromCenter = Math.abs(idx - center)
@@ -279,11 +277,11 @@ onUnmounted(() => {
           ref="heroStackEl"
           class="relative mx-auto flex w-full max-w-[46rem] flex-col items-center justify-center text-center will-change-transform"
         >
-          <!-- Beat 3: ORIGIN Writes Letter-by-Letter -->
+          <!-- Beat 3: ORIGIN Writes Letter-by-Letter (sr-only replaces prohibited span aria-label) -->
           <span
-            aria-label="ORIGIN"
-            class="mb-6 sm:mb-8 lg:mb-10 inline-flex items-center text-[0.7rem] sm:text-[0.78rem] font-medium uppercase text-white/84 select-none [@media(max-height:520px)]:mb-2.5 [@media(max-height:520px)]:text-[0.62rem]"
+            class="relative mb-6 sm:mb-8 lg:mb-10 inline-flex items-center text-[0.7rem] sm:text-[0.78rem] font-medium uppercase text-white/84 select-none [@media(max-height:520px)]:mb-2.5 [@media(max-height:520px)]:text-[0.62rem]"
           >
+            <span class="sr-only">ORIGIN</span>
             <span
               v-for="(ch, pIdx) in ORIGIN_CHARS"
               :key="`prev-${pIdx}`"
@@ -297,12 +295,13 @@ onUnmounted(() => {
             >{{ ch }}</span>
           </span>
 
-          <!-- Beat 4: Something -> is -> forming. (Momentary Glow Burst & Clean Settle) -->
+          <!-- Beat 4: Something -> is -> forming. (Clean Accessible Heading + Unhidden Focusable Button) -->
           <h1
             id="formation-heading"
-            aria-label="Something is forming."
-            class="text-[2.6rem] 2xs:text-[3.1rem] sm:text-[4.4rem] lg:text-[5.2rem] xl:text-[5.85rem] 2xl:text-[6.35rem] font-bold leading-[1.04] tracking-[-0.035em] text-white select-none [@media(max-height:520px)]:text-[2.3rem]"
+            class="relative text-[2.6rem] 2xs:text-[3.1rem] sm:text-[4.4rem] lg:text-[5.2rem] xl:text-[5.85rem] 2xl:text-[6.35rem] font-bold leading-[1.04] tracking-[-0.035em] text-white select-none [@media(max-height:520px)]:text-[2.3rem]"
           >
+            <span class="sr-only">Something is </span>
+
             <!-- "Something" -->
             <span aria-hidden="true" class="block">
               <span
@@ -317,9 +316,9 @@ onUnmounted(() => {
               >{{ ch }}</span>
             </span>
 
-            <!-- "is forming." -->
-            <span aria-hidden="true" class="mt-0.5 sm:mt-1.5 block">
-              <span class="inline-flex mr-[0.22em]">
+            <!-- "is forming." (No aria-hidden here so focusable role="button" stays exposed) -->
+            <span class="mt-0.5 sm:mt-1.5 block">
+              <span aria-hidden="true" class="inline-flex mr-[0.22em]">
                 <span
                   v-for="(ch, iIdx) in IS_CHARS"
                   :key="`is-${iIdx}`"
@@ -336,7 +335,7 @@ onUnmounted(() => {
                 data-resonant-hover
                 role="button"
                 tabindex="0"
-                aria-label="forming. — hover or click to resonate neural strands"
+                aria-label="forming."
                 class="forming-accent relative inline-flex cursor-pointer text-brand-blue focus:outline-none focus-visible:underline"
                 :class="{ 'is-resonating': isFormingActive || isSurfacePulsing }"
                 @mouseenter="onFormingEnter"
@@ -361,6 +360,7 @@ onUnmounted(() => {
                 <span
                   v-for="(ch, fIdx) in FORMING_CHARS"
                   :key="`form-${fIdx}`"
+                  aria-hidden="true"
                   class="forming-char-write inline-block"
                   :style="{
                     '--delay': `${HERO_CHOREOGRAPHY.formingStartMs + fIdx * HERO_CHOREOGRAPHY.formingCharStaggerMs}ms`,
@@ -371,11 +371,12 @@ onUnmounted(() => {
             </span>
           </h1>
 
-          <!-- Beat 5: Subtitle Writes Word-by-Word -->
+          <!-- Beat 5: Subtitle Writes Word-by-Word (sr-only replaces prohibited p aria-label) -->
           <p
-            aria-label="Every beginning carries a signal. Follow its journey."
-            class="mt-5 sm:mt-7 lg:mt-8 max-w-[26rem] text-[0.96rem] 2xs:text-[1.05rem] sm:text-[1.22rem] xl:text-[1.34rem] font-normal leading-[1.58] tracking-[-0.01em] text-white/84 select-none [@media(max-height:520px)]:mt-2.5 [@media(max-height:520px)]:text-[0.88rem]"
+            class="relative mt-5 sm:mt-7 lg:mt-8 max-w-[26rem] text-[0.96rem] 2xs:text-[1.05rem] sm:text-[1.22rem] xl:text-[1.34rem] font-normal leading-[1.58] tracking-[-0.01em] text-white/84 select-none [@media(max-height:520px)]:mt-2.5 [@media(max-height:520px)]:text-[0.88rem]"
           >
+            <span class="sr-only">Every beginning carries a signal. Follow its journey.</span>
+
             <span aria-hidden="true" class="flex flex-wrap justify-center">
               <span
                 v-for="(word, w1Idx) in LEAD_LINE_1_WORDS"
@@ -403,9 +404,8 @@ onUnmounted(() => {
             </span>
           </p>
 
-          <!-- Beat 5B: Signal Horizon Ignition Interactive Cue (Flexbox Center-Outward Unfurl) -->
+          <!-- Beat 5B: Signal Horizon Ignition Interactive Cue (Natural Token Semantics, Zero Prohibited ARIA) -->
           <div
-            :aria-label="cueAriaLabel"
             data-resonant-hover
             class="signal-horizon-cue relative mt-6 sm:mt-8 lg:mt-9 inline-flex max-w-full items-center justify-center gap-2.5 sm:gap-4 px-2 py-1.5 select-none [@media(max-height:520px)]:mt-2.5 [@media(max-height:520px)]:py-0.5"
             :class="{
@@ -422,19 +422,8 @@ onUnmounted(() => {
               :style="{ '--cue-start': `${HERO_CHOREOGRAPHY.interactionCueStartMs}ms` }"
             />
 
-            <!-- Left Bioluminescent Horizon Filament -->
-            <!-- <span
-              aria-hidden="true"
-              class="cue-wing cue-wing--left h-px w-4 2xs:w-6 sm:w-11 shrink-0 origin-right"
-              :style="{
-                '--wing-delay': `${HERO_CHOREOGRAPHY.interactionCueStartMs}ms`,
-                '--wing-dur': `${HERO_CHOREOGRAPHY.interactionCueWingDurationMs}ms`,
-              }"
-            /> -->
-
             <!-- Center-Outward Igniting Tokens (Interactive Verbs + Architectural Copy) -->
             <span
-              aria-hidden="true"
               class="inline-flex flex-wrap items-center justify-center gap-x-[0.52em] gap-y-1 text-[0.58rem] 2xs:text-[0.63rem] sm:text-[0.7rem] font-medium uppercase leading-[1.55] tracking-[0.25em] [@media(max-height:520px)]:text-[0.54rem]"
             >
               <template
@@ -470,16 +459,6 @@ onUnmounted(() => {
                 >{{ token.text }}</span>
               </template>
             </span>
-
-            <!-- Right Bioluminescent Horizon Filament -->
-            <!-- <span
-              aria-hidden="true"
-              class="cue-wing cue-wing--right h-px w-4 2xs:w-6 sm:w-11 shrink-0 origin-left"
-              :style="{
-                '--wing-delay': `${HERO_CHOREOGRAPHY.interactionCueStartMs}ms`,
-                '--wing-dur': `${HERO_CHOREOGRAPHY.interactionCueWingDurationMs}ms`,
-              }"
-            /> -->
           </div>
         </div>
 

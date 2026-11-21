@@ -6,11 +6,11 @@ export default defineNuxtConfig({
     compatibilityVersion: 4,
   },
 
-  compatibilityDate: '2024-11-01',
+  compatibilityDate: '2026-07-15',
 
   pages: true,
 
-  // 1. Site Authority (Forced Production Indexable)
+  // 1. Site Authority (Brandsta HQ — Formation Mode)
   site: {
     url: 'https://brandsta.in',
     name: 'Brandsta',
@@ -28,25 +28,29 @@ export default defineNuxtConfig({
     },
   },
 
-  // 3. Core Modules
+  // 3. Core, SEO & Vercel Telemetry Modules
   modules: [
     '@nuxt/fonts',
-    '@vueuse/motion/nuxt',
+    'nuxt-site-config',
     '@nuxtjs/sitemap',
     '@nuxtjs/robots',
+    '@vercel/speed-insights/nuxt',
+    '@vercel/analytics/nuxt',
   ],
 
-  // 4. Typography Owned Exclusively by @nuxt/fonts (Zero Duplicate Links)
+  // 4. Self-Hosted WOFF2 Typography (Inter Upright/Italic + Playfair Display Italic Ready)
   fonts: {
     defaults: {
       subsets: ['latin'],
+      formats: ['woff2'],
     },
     families: [
       {
         name: 'Inter',
         provider: 'google',
         styles: ['normal'],
-        weights: [300, 400, 500, 600, 700],
+        weights: [400, 500, 600, 700],
+        formats: ['woff2'],
         global: true,
         preload: true,
       },
@@ -55,139 +59,23 @@ export default defineNuxtConfig({
         provider: 'google',
         styles: ['italic'],
         weights: [400],
+        formats: ['woff2'],
+        global: true,
+        preload: false,
+      },
+      {
+        name: 'Playfair Display',
+        provider: 'google',
+        styles: ['italic'],
+        weights: [400],
+        formats: ['woff2'],
         global: true,
         preload: false,
       },
     ],
   },
 
-  // 5. Centralized GPU-Only Motion Directives (Hero Opacity: 1 for Instant LCP)
-  motion: {
-    directives: {
-      // Hero Stage Directives (LCP-Safe Opacity: 1)
-      'hero-char-wave': {
-        initial: { opacity: 1, y: 26, scale: 0.92 },
-        visibleOnce: {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-          transition: { duration: 720, ease: [0.22, 1, 0.36, 1] },
-        },
-      },
-      'hero-word-wave': {
-        initial: { opacity: 1, y: 20 },
-        visibleOnce: {
-          opacity: 1,
-          y: 0,
-          transition: { duration: 680, ease: [0.22, 1, 0.36, 1] },
-        },
-      },
-      'hero-fade-up': {
-        initial: { opacity: 1, y: 28 },
-        visibleOnce: {
-          opacity: 1,
-          y: 0,
-          transition: { duration: 850, ease: [0.22, 1, 0.36, 1] },
-        },
-      },
-      'hero-scale-in': {
-        initial: { opacity: 1, y: 24, scale: 0.94 },
-        visibleOnce: {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-          transition: { duration: 850, ease: [0.22, 1, 0.36, 1] },
-        },
-      },
-      'hero-micro-up': {
-        initial: { opacity: 1, y: 16 },
-        visibleOnce: {
-          opacity: 1,
-          y: 0,
-          transition: { duration: 700, ease: [0.22, 1, 0.36, 1] },
-        },
-      },
-
-      // Formation Stage Directives (Below-the-Fold Scroll Entry)
-      'header-glide-left': {
-        initial: { opacity: 0, x: -22 },
-        visibleOnce: {
-          opacity: 1,
-          x: 0,
-          transition: { duration: 640, ease: [0.22, 1, 0.36, 1] },
-        },
-      },
-      'header-glide-right': {
-        initial: { opacity: 0, x: 22 },
-        visibleOnce: {
-          opacity: 1,
-          x: 0,
-          transition: { duration: 640, delay: 80, ease: [0.22, 1, 0.36, 1] },
-        },
-      },
-      'stage-eyebrow': {
-        initial: { opacity: 0, y: 18, scale: 0.94 },
-        visibleOnce: {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-          transition: { duration: 620, delay: 110, ease: [0.22, 1, 0.36, 1] },
-        },
-      },
-      'char-wave': {
-        initial: { opacity: 0, y: 42, scale: 0.86 },
-        visibleOnce: {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-          transition: { duration: 720, ease: [0.22, 1, 0.36, 1] },
-        },
-      },
-      'word-wave': {
-        initial: { opacity: 0, y: 20 },
-        visibleOnce: {
-          opacity: 1,
-          y: 0,
-          transition: { duration: 620, ease: [0.22, 1, 0.36, 1] },
-        },
-      },
-      'svg-stage': {
-        initial: { opacity: 0, x: 28, scale: 0.96 },
-        visibleOnce: {
-          opacity: 1,
-          x: 0,
-          scale: 1,
-          transition: { duration: 880, delay: 180, ease: [0.22, 1, 0.36, 1] },
-        },
-      },
-      'rail-node': {
-        initial: { opacity: 0, y: 16 },
-        visibleOnce: {
-          opacity: 1,
-          y: 0,
-          transition: { duration: 560, ease: [0.22, 1, 0.36, 1] },
-        },
-      },
-      'rail-line': {
-        initial: { opacity: 0, scaleX: 0 },
-        visibleOnce: {
-          opacity: 1,
-          scaleX: 1,
-          transition: { duration: 920, delay: 200, ease: [0.22, 1, 0.36, 1] },
-        },
-      },
-      'fade-up': {
-        initial: { opacity: 0, y: 24 },
-        visibleOnce: {
-          opacity: 1,
-          y: 0,
-          transition: { duration: 700, ease: [0.22, 1, 0.36, 1] },
-        },
-      },
-    },
-  },
-
-  // 6. Sitemap Configuration
+  // 5. Zero-Runtime Sitemap Configuration
   sitemap: {
     zeroRuntime: true,
     urls: [
@@ -195,7 +83,7 @@ export default defineNuxtConfig({
     ],
   },
 
-  // 7. Robots Configuration (Explicitly Open to All Crawlers & AI Bots)
+  // 6. Open Crawler & AI Discovery Directives
   robots: {
     blockNonSeoBots: false,
     blockAiBots: false,
@@ -204,14 +92,20 @@ export default defineNuxtConfig({
     sitemap: ['https://brandsta.in/sitemap.xml'],
   },
 
-  // 8. Prerender Rules
+  // 7. Prerender & UTF-8 Agentic Header Rules
   routeRules: {
     '/robots.txt': { prerender: true },
     '/sitemap.xml': { prerender: true },
+    '/llms.txt': {
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+        'cache-control': 'public, max-age=3600, s-maxage=3600',
+      },
+    },
     '/': { prerender: true },
   },
 
-  // 9. Nitro Compression & Crawler Prerendering
+  // 8. Nitro Compression & Crawler Prerendering
   nitro: {
     compressPublicAssets: true,
     prerender: {
@@ -224,25 +118,20 @@ export default defineNuxtConfig({
     },
   },
 
-  // 10. Payload Extraction
+  // 9. Payload Extraction
   experimental: {
     payloadExtraction: true,
   },
 
-  // 11. Master Stylesheet
+  // 10. Master Stylesheet
   css: ['~/assets/css/main.css'],
 
-  // 12. SSR Motion Transpilation
-  build: {
-    transpile: ['@vueuse/motion'],
-  },
-
-  // 13. Inline Critical CSS for Zero Render-Blocking
+  // 11. Inline Critical CSS for Zero Render-Blocking
   features: {
     inlineStyles: true,
   },
 
-  // 14. Runtime Secrets Vault (Empty Fallbacks in Git)
+  // 12. Runtime Secrets Vault
   runtimeConfig: {
     resendApiKey: '',
     public: {
@@ -250,7 +139,7 @@ export default defineNuxtConfig({
     },
   },
 
-  // 15. Global Head (Dynamic Canonicals Handled Per-Route in useBrandstaSeo.ts)
+  // 13. Global Head (Formation Favicons & #02050e Preserved Untouched)
   app: {
     baseURL: '/',
     pageTransition: {
@@ -275,16 +164,16 @@ export default defineNuxtConfig({
           name: 'robots',
           content: 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1',
         },
-        { name: 'author', content: 'kriz - https://brandsta.in' },
+        { name: 'author', content: 'Brandsta — https://brandsta.in' },
         { name: 'application-name', content: 'Brandsta' },
 
-        // Local Geographic Coordinates (Koduvayur, Palakkad, Kerala)
+        // Official Brandsta Home Base Coordinates (Koduvayur, Palakkad, Kerala)
         { name: 'geo.region', content: 'IN-KL' },
         { name: 'geo.placename', content: 'Koduvayur, Palakkad, Kerala' },
-        { name: 'geo.position', content: '10.6975;76.6435' },
-        { name: 'ICBM', content: '10.6975, 76.6435' },
+        { name: 'geo.position', content: '10.684769;76.650758' },
+        { name: 'ICBM', content: '10.684769, 76.650758' },
 
-        // Unified Brand Theme Hex (#02050e across all 4 places)
+        // Formation Theme Hex (#02050e Preserved for This Branch)
         { name: 'msapplication-TileColor', content: '#02050e' },
         { name: 'msapplication-TileImage', content: '/images/favicons/ms-icon-144x144.png' },
         { name: 'theme-color', content: '#02050e' },
@@ -300,6 +189,11 @@ export default defineNuxtConfig({
         { property: 'og:type', content: 'website' },
         { property: 'og:locale', content: 'en_IN' },
         { property: 'og:site_name', content: 'Brandsta' },
+        { property: 'og:title', content: 'Brandsta | Something is forming.' },
+        {
+          property: 'og:description',
+          content: 'Something is forming. Every beginning carries a signal. Follow its journey.',
+        },
         { property: 'og:image', content: 'https://brandsta.in/images/og/formation.jpg' },
         { property: 'og:image:secure_url', content: 'https://brandsta.in/images/og/formation.jpg' },
         { property: 'og:image:width', content: '1200' },
@@ -309,6 +203,11 @@ export default defineNuxtConfig({
 
         // Twitter / X Card
         { name: 'twitter:card', content: 'summary_large_image' },
+        { name: 'twitter:title', content: 'Brandsta | Something is forming.' },
+        {
+          name: 'twitter:description',
+          content: 'Something is forming. Every beginning carries a signal. Follow its journey.',
+        },
         { name: 'twitter:image', content: 'https://brandsta.in/images/og/formation.jpg' },
         { name: 'twitter:image:alt', content: 'Brandsta — Something is forming.' },
       ],
@@ -316,7 +215,7 @@ export default defineNuxtConfig({
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
 
-        // Apple Touch Icons
+        // Apple Touch Icons (Formation Assets Untouched)
         { rel: 'apple-touch-icon', sizes: '57x57', href: '/images/favicons/apple-icon-57x57.png' },
         { rel: 'apple-touch-icon', sizes: '60x60', href: '/images/favicons/apple-icon-60x60.png' },
         { rel: 'apple-touch-icon', sizes: '72x72', href: '/images/favicons/apple-icon-72x72.png' },
@@ -329,7 +228,7 @@ export default defineNuxtConfig({
         { rel: 'apple-touch-icon', sizes: '167x167', href: '/images/favicons/apple-icon.png' },
         { rel: 'apple-touch-icon', sizes: '190x190', href: '/images/favicons/apple-icon-precomposed.png' },
 
-        // Standard Favicons
+        // Standard Favicons (Formation Assets Untouched)
         { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/images/favicons/favicon-16x16.png' },
         { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/images/favicons/favicon-32x32.png' },
         { rel: 'icon', type: 'image/png', sizes: '96x96', href: '/images/favicons/favicon-96x96.png' },

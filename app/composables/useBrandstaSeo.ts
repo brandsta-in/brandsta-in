@@ -11,6 +11,7 @@ export interface BrandstaSeoOptions {
 }
 
 const SITE_URL = 'https://brandsta.in'
+const BRANDSTA_CC_URL = 'https://brandsta.cc'
 const DEFAULT_TITLE = 'Brandsta | Something is forming.'
 const DEFAULT_DESCRIPTION = 'Something is forming. Every beginning carries a signal. Follow its journey.'
 const DEFAULT_OG_IMAGE = `${SITE_URL}/images/og/formation.jpg`
@@ -63,20 +64,52 @@ export function useBrandstaSeo(options: BrandstaSeoOptions = {}) {
         '@id': `${SITE_URL}/#organization`,
         name: 'Brandsta',
         legalName: 'Brandsta Interactive',
+        slogan: 'We make waves. Signature Branding. Amplified.',
+        foundingDate: '2021',
+        taxID: '32DXCPK0141J1ZX',
         url: `${SITE_URL}/`,
         email: 'hello@brandsta.in',
-        description: DEFAULT_DESCRIPTION,
+        telephone: '+91-81290-12205',
+        description:
+          'Brandsta (Brandsta Interactive) amplifies digital identities through brand strategy, visual and motion identity, high-performance web and app experiences, technical and AI visibility, digital growth, and custom code systems.',
         image: DEFAULT_OG_IMAGE,
         address: {
           '@type': 'PostalAddress',
           addressLocality: 'Koduvayur, Palakkad',
           addressRegion: 'Kerala',
+          postalCode: '678501',
           addressCountry: 'IN',
         },
         geo: {
           '@type': 'GeoCoordinates',
-          latitude: 10.6975,
-          longitude: 76.6435,
+          latitude: 10.684769,
+          longitude: 76.650758,
+        },
+        areaServed: [
+          { '@type': 'AdministrativeArea', name: 'Kerala' },
+          { '@type': 'Country', name: 'India' },
+          'Worldwide',
+        ],
+        contactPoint: [
+          {
+            '@type': 'ContactPoint',
+            contactType: 'customer support',
+            telephone: '+91-81290-12205',
+            email: 'hello@brandsta.in',
+            areaServed: ['IN', 'Worldwide'],
+            availableLanguage: ['English', 'Malayalam', 'Hindi'],
+          },
+        ],
+        sameAs: [
+          'https://www.instagram.com/brandsta.in',
+          `${BRANDSTA_CC_URL}/`,
+          'https://wa.me/918129012205',
+        ],
+        subOrganization: {
+          '@type': 'Organization',
+          '@id': `${BRANDSTA_CC_URL}/#organization`,
+          name: 'Brandsta — Custom Code',
+          url: `${BRANDSTA_CC_URL}/`,
         },
       },
       {
@@ -85,8 +118,29 @@ export function useBrandstaSeo(options: BrandstaSeoOptions = {}) {
         url: `${SITE_URL}/`,
         name: 'Brandsta',
         description: DEFAULT_DESCRIPTION,
+        inLanguage: 'en-IN',
         publisher: {
           '@id': `${SITE_URL}/#organization`,
+        },
+      },
+      {
+        '@type': 'WebPage',
+        '@id': `${canonicalUrl.value}#webpage`,
+        url: canonicalUrl.value,
+        name: pageTitle,
+        description: pageDescription,
+        inLanguage: 'en-IN',
+        isPartOf: {
+          '@id': `${SITE_URL}/#website`,
+        },
+        about: {
+          '@id': `${SITE_URL}/#organization`,
+        },
+        primaryImageOfPage: {
+          '@type': 'ImageObject',
+          url: ogImage,
+          width: 1200,
+          height: 630,
         },
       },
       {

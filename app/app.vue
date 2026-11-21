@@ -4,7 +4,7 @@ import ResonantCursor from '~/components/ResonantCursor.vue'
 </script>
 
 <template>
-  <div class="min-h-dvh bg-[#02050e] text-white antialiased">
+  <div class="min-h-dvh bg-brand-obsidian text-white antialiased">
     <NuxtRouteAnnouncer />
     <NuxtPage />
     <ResonantCursor />

@@ -145,9 +145,9 @@ onUnmounted(() => {
         :class="isFormationTextReady ? 'pointer-events-auto' : 'pointer-events-none'"
       >
         <span
-          aria-label="FORMATION"
-          class="inline-flex items-center text-[0.7rem] sm:text-xs font-medium uppercase text-white/84 select-none"
+          class="relative inline-flex items-center text-[0.7rem] sm:text-xs font-medium uppercase text-white/84 select-none"
         >
+          <span class="sr-only">FORMATION</span>
           <span
             v-for="(ch, cIdx) in HEADER_LETTERS"
             :key="`hdr-${cIdx}`"
@@ -199,10 +199,10 @@ onUnmounted(() => {
               </span>
 
               <h2
-                :aria-label="activeStage.title"
-                class="mt-1.5 sm:mt-3 inline-flex whitespace-nowrap font-bold uppercase leading-[0.95] tracking-[-0.02em] text-white select-none [@media(max-height:520px)]:mt-1"
+                class="relative mt-1.5 sm:mt-3 inline-flex whitespace-nowrap font-bold uppercase leading-[0.95] tracking-[-0.02em] text-white select-none [@media(max-height:520px)]:mt-1"
                 :class="titleSizeClass(activeStage.title)"
               >
+                <span class="sr-only">{{ activeStage.title }}</span>
                 <span
                   v-for="(ch, charIdx) in splitChars(activeStage.title)"
                   :key="`${activeStage.slug}-char-${charIdx}`"
@@ -224,9 +224,9 @@ onUnmounted(() => {
               </h2>
 
               <p
-                :aria-label="activeStage.lead"
-                class="mt-3.5 sm:mt-6 flex flex-wrap text-[1.06rem] 2xs:text-[1.14rem] sm:text-[1.35rem] xl:text-[1.5rem] font-semibold leading-[1.35] tracking-[-0.01em] text-white/95 select-none [@media(max-height:520px)]:mt-2 [@media(max-height:520px)]:text-[0.96rem]"
+                class="relative mt-3.5 sm:mt-6 flex flex-wrap text-[1.06rem] 2xs:text-[1.14rem] sm:text-[1.35rem] xl:text-[1.5rem] font-semibold leading-[1.35] tracking-[-0.01em] text-white/95 select-none [@media(max-height:520px)]:mt-2 [@media(max-height:520px)]:text-[0.96rem]"
               >
+                <span class="sr-only">{{ activeStage.lead }}</span>
                 <span
                   v-for="(word, wIdx) in splitWords(activeStage.lead)"
                   :key="`${activeStage.slug}-lead-${wIdx}`"
@@ -241,9 +241,9 @@ onUnmounted(() => {
               </p>
 
               <p
-                :aria-label="activeStage.caption"
-                class="mt-2 sm:mt-3 flex max-w-[20.5rem] sm:max-w-[23rem] flex-wrap text-[0.93rem] sm:text-[1.1rem] xl:text-[1.2rem] italic font-normal leading-[1.52] text-white/68 select-none [@media(max-height:520px)]:mt-1 [@media(max-height:520px)]:text-[0.84rem]"
+                class="relative mt-2 sm:mt-3 flex max-w-[20.5rem] sm:max-w-[23rem] flex-wrap text-[0.93rem] sm:text-[1.1rem] xl:text-[1.2rem] italic font-normal leading-[1.52] text-white/68 select-none [@media(max-height:520px)]:mt-1 [@media(max-height:520px)]:text-[0.84rem]"
               >
+                <span class="sr-only">{{ activeStage.caption }}</span>
                 <span
                   v-for="(word, wIdx) in splitWords(activeStage.caption)"
                   :key="`${activeStage.slug}-cap-${wIdx}`"
@@ -256,11 +256,15 @@ onUnmounted(() => {
                   }"
                 >{{ word }}</span>
               </p>
+
               <div
                 v-if="activeStage.launchDate"
-                :aria-label="`${activeStage.launchText ?? ''} ${activeStage.launchDate} ${activeStage.launchTime ?? ''}`.trim()"
-                class="mt-5 sm:mt-6 [@media(max-height:520px)]:mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.7rem] 2xs:text-[0.75rem] sm:text-[0.82rem] uppercase tabular-nums font-medium select-none"
+                class="relative mt-5 sm:mt-6 [@media(max-height:520px)]:mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.7rem] 2xs:text-[0.75rem] sm:text-[0.82rem] uppercase tabular-nums font-medium select-none"
               >
+                <span class="sr-only">
+                  {{ `${activeStage.launchText ?? ''} ${activeStage.launchDate} ${activeStage.launchTime ?? ''}`.trim() }}
+                </span>
+
                 <span
                   v-if="activeStage.launchText"
                   aria-hidden="true"
