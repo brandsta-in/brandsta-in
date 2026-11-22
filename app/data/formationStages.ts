@@ -65,7 +65,7 @@ export const FORMATION_STAGES: FormationStageItem[] = [
     lead: 'Within a designed enclosure, resonance creates amplification.',
     caption: 'What was once faint finds its intensity.',
     dateLabel: 'NOV 22 · 2026',
-    unlocked: false,
+    unlocked: true,
   },
   {
     number: '07',
