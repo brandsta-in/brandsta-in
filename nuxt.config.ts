@@ -79,7 +79,8 @@ export default defineNuxtConfig({
   sitemap: {
     zeroRuntime: true,
     urls: [
-      { loc: '/', changefreq: 'daily', priority: 1.0 },
+      { loc: '/', changefreq: 'weekly', priority: 1.0 },
+      { loc: '/formation', changefreq: 'monthly', priority: 0.8 },
     ],
   },
 
@@ -103,6 +104,7 @@ export default defineNuxtConfig({
       },
     },
     '/': { prerender: true },
+    '/formation': { prerender: true },
   },
 
   // 8. Nitro Compression & Crawler Prerendering
@@ -114,6 +116,7 @@ export default defineNuxtConfig({
         '/robots.txt',
         '/sitemap.xml',
         '/',
+        '/formation',
       ],
     },
   },

@@ -1,929 +1,643 @@
 <!-- app/pages/index.vue -->
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useBrandstaSeo } from '~/composables/useBrandstaSeo'
-import { useConvergentScroll, type ConvergentTelemetry } from '~/composables/useConvergentScroll'
-import { HERO_CHOREOGRAPHY } from '~/data/heroChoreography'
-import ConvergentSignalEngine from '~/components/ConvergentSignalEngine.vue'
-import FormationSlider from '~/components/FormationSlider.vue'
+import { ref } from 'vue'
+import ResonantFlowButton, {
+  type ResonantButtonVariant,
+  type ResonantButtonFluid,
+  type ResonantButtonSize,
+  type ResonantButtonArrow,
+} from '~/components/ResonantFlowButton.vue'
+import BrandstaHeroResonator from '~/components/launch/BrandstaHeroResonator.vue'
 
-type InputModality = 'desktop' | 'touch' | 'hybrid'
-
-interface CueToken {
-  text: string
-  action?: 'scroll' | 'pulse'
+interface ButtonSpec {
+  id: string
+  meta: string
+  label: string
+  size: ResonantButtonSize
+  variant: ResonantButtonVariant
+  fluid?: ResonantButtonFluid
+  arrow?: ResonantButtonArrow
+  href?: string
+  cursorClass: string
 }
 
-useBrandstaSeo({
-  title: 'Brandsta | Something is forming.',
-  description: 'Something is forming. Every beginning carries a signal. Follow its journey.',
-})
-
-const {
-  mountScrollEngine,
-  onScrollTick,
-  scrollToFormation,
-  setFormingHovered,
-  triggerFormingPulse,
-} = useConvergentScroll()
-
-const ORIGIN_CHARS = 'ORIGIN'.split('')
-const SOMETHING_CHARS = 'Something'.split('')
-const IS_CHARS = 'is'.split('')
-const FORMING_CHARS = 'forming.'.split('')
-const LEAD_LINE_1_WORDS = 'Every beginning carries a signal.'.split(' ')
-const LEAD_LINE_2_WORDS = 'Follow its journey.'.split(' ')
-
-const FORMING_FLASH_DELAY_MS =
-  HERO_CHOREOGRAPHY.formingStartMs +
-  (FORMING_CHARS.length - 1) * HERO_CHOREOGRAPHY.formingCharStaggerMs -
-  Math.round(40 * HERO_CHOREOGRAPHY.tempoScale)
-
-const heroStackEl = ref<HTMLDivElement | null>(null)
-const scrollCueEl = ref<HTMLButtonElement | null>(null)
-const isFormingActive = ref(false)
-const isCueHovered = ref(false)
-const isSurfacePulsing = ref(false)
-const inputModality = ref<InputModality>('desktop')
-
-const clickRipple = ref<{ active: boolean; x: number; y: number; id: number }>({
-  active: false,
-  x: 0,
-  y: 0,
-  id: 0,
-})
-
-const cueTokens = computed<CueToken[]>(() => {
-  if (inputModality.value === 'hybrid') {
-    return [
-      { text: 'SCROLL,', action: 'scroll' },
-      { text: 'SWIPE', action: 'scroll' },
-      { text: 'OR' },
-      { text: 'CLICK', action: 'pulse' },
-      { text: 'TO' },
-      { text: 'WITNESS' },
-      { text: 'THE' },
-      { text: 'FORMATION' },
-    ]
-  }
-  if (inputModality.value === 'touch') {
-    return [
-      { text: 'SWIPE', action: 'scroll' },
-      { text: 'OR' },
-      { text: 'TAP', action: 'pulse' },
-      { text: 'TO' },
-      { text: 'WITNESS' },
-      { text: 'THE' },
-      { text: 'FORMATION' },
-    ]
-  }
-  return [
-    { text: 'SCROLL', action: 'scroll' },
-    { text: 'OR' },
-    { text: 'CLICK', action: 'pulse' },
-    { text: 'TO' },
-    { text: 'WITNESS' },
-    { text: 'THE' },
-    { text: 'FORMATION' },
-  ]
-})
-
-function cueTokenDelayMs(idx: number, total: number): number {
-  const center = (total - 1) / 2
-  const distFromCenter = Math.abs(idx - center)
-  return (
-    HERO_CHOREOGRAPHY.interactionCueStartMs +
-    Math.round(distFromCenter * HERO_CHOREOGRAPHY.interactionCueTokenStaggerMs * 2)
-  )
+interface CursorSpecimen {
+  id: string
+  label: string
+  cursorClass: string
+  badgeTone: string
 }
 
-let cleanupScroll: (() => void) | null = null
-let unsubscribeHeroTick: (() => void) | null = null
-let pulseEchoTimer: ReturnType<typeof setTimeout> | null = null
-let rippleHideTimer: ReturnType<typeof setTimeout> | null = null
+const isHeroLoaderRunning = ref(false)
+const lastTriggered = ref<string>('Click any button — only 5 live links active, 13 non-action')
 
-function detectInputModality(): InputModality {
-  if (typeof window === 'undefined') return 'desktop'
+const CURSOR_SPECIMENS: readonly CursorSpecimen[] = [
+  {
+    id: 'cur-default',
+    label: '1 · DEFAULT IDLE',
+    cursorClass: 'cursor-default',
+    badgeTone: 'border-white/12 bg-white/[0.02] text-white/55',
+  },
+  {
+    id: 'cur-hover-blue',
+    label: '2 · HOVERABLE BLUE',
+    cursorClass: 'cursor-hoverable cursor-blue',
+    badgeTone: 'border-sky-400/30 bg-sky-500/[0.06] text-sky-200/85',
+  },
+  {
+    id: 'cur-hover-gold',
+    label: '3 · HOVERABLE GOLD',
+    cursorClass: 'cursor-hoverable cursor-gold',
+    badgeTone: 'border-amber-400/30 bg-amber-500/[0.06] text-amber-200/85',
+  },
+  {
+    id: 'cur-click-blue',
+    label: '4 · CLICKABLE BLUE',
+    cursorClass: 'cursor-clickable cursor-blue',
+    badgeTone: 'border-blue-500/40 bg-blue-600/[0.10] text-sky-100',
+  },
+  {
+    id: 'cur-click-dual',
+    label: '5 · CLICKABLE DUAL (WAVE)',
+    cursorClass: 'cursor-clickable cursor-dual',
+    badgeTone: 'border-indigo-400/35 bg-indigo-500/[0.09] text-indigo-100',
+  },
+  {
+    id: 'cur-click-gold',
+    label: '6 · CLICKABLE SPECIAL GOLD',
+    cursorClass: 'cursor-clickable cursor-gold',
+    badgeTone: 'border-amber-400/45 bg-amber-500/[0.11] text-amber-100',
+  },
+]
 
-  const hasCoarseAny = window.matchMedia?.('(any-pointer: coarse)').matches ?? false
-  const hasCoarsePrimary = window.matchMedia?.('(pointer: coarse)').matches ?? false
-  const hasFineHover = window.matchMedia?.('(hover: hover) and (pointer: fine)').matches ?? false
-  const hasTouchPoints = (navigator.maxTouchPoints ?? 0) > 0
+const BUTTON_GROUPS: { tier: string; size: ResonantButtonSize; items: ButtonSpec[] }[] = [
+  {
+    tier: 'LARGE · 56PX SHELL / 38PX SOCKETS',
+    size: 'lg',
+    items: [
+      {
+        id: 'lg-prim-blue',
+        meta: 'LIVE ↓ SCROLL (#BOTTOM-LAB-ANCHOR) · BLUE CURSOR',
+        label: 'START YOUR WAVE',
+        size: 'lg',
+        variant: 'primary',
+        href: '#bottom-lab-anchor',
+        cursorClass: 'cursor-clickable cursor-blue',
+      },
+      {
+        id: 'lg-astral-gold',
+        meta: 'NON-ACTION · SPECIAL GOLD CURSOR · ↗',
+        label: 'AMPLIFY YOUR IDENTITY',
+        size: 'lg',
+        variant: 'astral',
+        arrow: 'up-right',
+        cursorClass: 'cursor-clickable cursor-gold',
+      },
+      {
+        id: 'lg-sec-blue',
+        meta: 'LIVE ↗ EXTERNAL (KODUVAYUR.IN) · BLUE CURSOR',
+        label: 'SEE OUR WAVE',
+        size: 'lg',
+        variant: 'secondary',
+        href: 'https://koduvayur.in',
+        cursorClass: 'cursor-clickable cursor-blue',
+      },
+      {
+        id: 'lg-sec-gold',
+        meta: 'LIVE → NUXTLINK (/FORMATION) · SPECIAL GOLD CURSOR',
+        label: 'WITNESS THE FORMATION',
+        size: 'lg',
+        variant: 'secondary',
+        fluid: 'gold',
+        href: '/formation',
+        cursorClass: 'cursor-clickable cursor-gold',
+      },
+      {
+        id: 'lg-prim-gold',
+        meta: 'NON-ACTION · SPECIAL GOLD CURSOR · →',
+        label: 'IGNITE',
+        size: 'lg',
+        variant: 'primary',
+        fluid: 'gold',
+        arrow: 'right',
+        cursorClass: 'cursor-clickable cursor-gold',
+      },
+      {
+        id: 'lg-astral-blue',
+        meta: 'NON-ACTION · BLUE OVERRIDE CURSOR · ↑',
+        label: 'LAUNCH CUSTOM ARCHITECTURE',
+        size: 'lg',
+        variant: 'astral',
+        fluid: 'blue',
+        arrow: 'up',
+        cursorClass: 'cursor-clickable cursor-blue',
+      },
+    ],
+  },
+  {
+    tier: 'MEDIUM · 48PX SHELL / 32PX SOCKETS',
+    size: 'md',
+    items: [
+      {
+        id: 'md-prim-blue',
+        meta: 'NON-ACTION · BLUE CURSOR · →',
+        label: 'EXPLORE ORIGIN',
+        size: 'md',
+        variant: 'primary',
+        arrow: 'right',
+        cursorClass: 'cursor-clickable cursor-blue',
+      },
+      {
+        id: 'md-astral-gold',
+        meta: 'NON-ACTION · SPECIAL GOLD CURSOR · ↓',
+        label: 'BOOK CONCIERGE',
+        size: 'md',
+        variant: 'astral',
+        arrow: 'down',
+        cursorClass: 'cursor-clickable cursor-gold',
+      },
+      {
+        id: 'md-sec-blue',
+        meta: 'LIVE ↗ EXTERNAL (BRANDSTA.CC) · BLUE CURSOR',
+        label: 'BRANDSTA CUSTOM CODE',
+        size: 'md',
+        variant: 'secondary',
+        fluid: 'blue',
+        arrow: 'up-right',
+        href: 'https://brandsta.cc',
+        cursorClass: 'cursor-clickable cursor-blue',
+      },
+      {
+        id: 'md-sec-gold',
+        meta: 'NON-ACTION · SPECIAL GOLD CURSOR · ↓',
+        label: 'WAVE',
+        size: 'md',
+        variant: 'secondary',
+        fluid: 'gold',
+        arrow: 'down',
+        cursorClass: 'cursor-clickable cursor-gold',
+      },
+      {
+        id: 'md-prim-gold',
+        meta: 'NON-ACTION · SPECIAL GOLD CURSOR · ↗',
+        label: 'SIGNATURE SYSTEMS',
+        size: 'md',
+        variant: 'primary',
+        fluid: 'gold',
+        arrow: 'up-right',
+        cursorClass: 'cursor-clickable cursor-gold',
+      },
+      {
+        id: 'md-astral-blue',
+        meta: 'NON-ACTION · BLUE OVERRIDE CURSOR · →',
+        label: 'BUILD WHAT’S NEXT',
+        size: 'md',
+        variant: 'astral',
+        fluid: 'blue',
+        arrow: 'right',
+        cursorClass: 'cursor-clickable cursor-blue',
+      },
+    ],
+  },
+  {
+    tier: 'SMALL · 40PX SHELL / 26PX SOCKETS',
+    size: 'sm',
+    items: [
+      {
+        id: 'sm-prim-blue',
+        meta: 'NON-ACTION · BLUE CURSOR · →',
+        label: 'PULSE',
+        size: 'sm',
+        variant: 'primary',
+        arrow: 'right',
+        cursorClass: 'cursor-clickable cursor-blue',
+      },
+      {
+        id: 'sm-astral-gold',
+        meta: 'LIVE ↑ SCROLL (#TOP) · SPECIAL GOLD CURSOR',
+        label: 'RETURN TO APEX',
+        size: 'sm',
+        variant: 'astral',
+        href: '#top',
+        cursorClass: 'cursor-clickable cursor-gold',
+      },
+      {
+        id: 'sm-sec-blue',
+        meta: 'NON-ACTION · BLUE CURSOR · ↓',
+        label: 'DIRECT SIGNAL',
+        size: 'sm',
+        variant: 'secondary',
+        arrow: 'down',
+        cursorClass: 'cursor-clickable cursor-blue',
+      },
+      {
+        id: 'sm-sec-gold',
+        meta: 'NON-ACTION · SPECIAL GOLD CURSOR · ↗',
+        label: 'LIVE CASE STUDY',
+        size: 'sm',
+        variant: 'secondary',
+        fluid: 'gold',
+        arrow: 'up-right',
+        cursorClass: 'cursor-clickable cursor-gold',
+      },
+      {
+        id: 'sm-prim-gold',
+        meta: 'NON-ACTION · SPECIAL GOLD CURSOR · ↑',
+        label: 'TOP',
+        size: 'sm',
+        variant: 'primary',
+        fluid: 'gold',
+        arrow: 'up',
+        cursorClass: 'cursor-clickable cursor-gold',
+      },
+      {
+        id: 'sm-astral-blue',
+        meta: 'NON-ACTION · BLUE OVERRIDE CURSOR · →',
+        label: 'SEVEN STAGES OF FORMATION',
+        size: 'sm',
+        variant: 'astral',
+        fluid: 'blue',
+        arrow: 'right',
+        cursorClass: 'cursor-clickable cursor-blue',
+      },
+    ],
+  },
+]
 
-  if ((hasCoarseAny || hasTouchPoints) && hasFineHover) {
-    return 'hybrid'
-  }
-  if (hasCoarsePrimary && !hasFineHover) {
-    return 'touch'
-  }
-  return 'desktop'
+function onButtonAction(item: ButtonSpec) {
+  lastTriggered.value = `Triggered: ${item.id.toUpperCase()} (${item.label})`
 }
-
-function spawnClickRipple(clientX?: number, clientY?: number) {
-  if (typeof clientX !== 'number' || typeof clientY !== 'number') return
-  if (clientX === 0 && clientY === 0) return
-
-  if (rippleHideTimer) clearTimeout(rippleHideTimer)
-  clickRipple.value = {
-    active: true,
-    x: clientX,
-    y: clientY,
-    id: clickRipple.value.id + 1,
-  }
-  rippleHideTimer = setTimeout(() => {
-    clickRipple.value.active = false
-  }, 540)
-}
-
-function triggerSurfaceResonance(clientX?: number, clientY?: number) {
-  triggerFormingPulse()
-  spawnClickRipple(clientX, clientY)
-
-  isSurfacePulsing.value = false
-  if (pulseEchoTimer) clearTimeout(pulseEchoTimer)
-
-  requestAnimationFrame(() => {
-    isSurfacePulsing.value = true
-    pulseEchoTimer = setTimeout(() => {
-      isSurfacePulsing.value = false
-    }, 380)
-  })
-}
-
-function onRootSurfaceClick(e: MouseEvent) {
-  const target = e.target as HTMLElement | null
-  if (!target) return
-
-  // Skip buttons/links and FormationSlider's visual col (which already fires triggerFormingPulse)
-  if (target.closest('button, a, [role="button"], .formation-visual-col')) {
-    return
-  }
-
-  triggerSurfaceResonance(e.clientX, e.clientY)
-}
-
-function onFormingEnter() {
-  isFormingActive.value = true
-  setFormingHovered(true)
-}
-
-function onFormingLeave() {
-  isFormingActive.value = false
-  if (!isCueHovered.value) {
-    setFormingHovered(false)
-  }
-}
-
-function onFormingClick(e?: MouseEvent) {
-  triggerSurfaceResonance(e?.clientX, e?.clientY)
-}
-
-function onCueEnter() {
-  isCueHovered.value = true
-  setFormingHovered(true)
-}
-
-function onCueLeave() {
-  isCueHovered.value = false
-  if (!isFormingActive.value) {
-    setFormingHovered(false)
-  }
-}
-
-function onCueTokenClick(action: 'scroll' | 'pulse', e: MouseEvent) {
-  if (action === 'scroll') {
-    scrollToFormation()
-    return
-  }
-  triggerSurfaceResonance(e.clientX, e.clientY)
-}
-
-function updateHeroScrollParallax(tel: ConvergentTelemetry) {
-  const p = tel.heroProgress
-
-  if (heroStackEl.value) {
-    const liftY = -p * 26
-    const fade = Math.max(0, 1 - Math.max(0, (p - 0.16) / 0.62))
-    heroStackEl.value.style.transform = `translate3d(0, ${liftY.toFixed(1)}px, 0)`
-    heroStackEl.value.style.opacity = fade.toFixed(3)
-    heroStackEl.value.style.pointerEvents = p > 0.45 ? 'none' : 'auto'
-  }
-
-  if (scrollCueEl.value) {
-    const cueFade = Math.max(0, 1 - p / 0.28)
-    scrollCueEl.value.style.opacity = cueFade.toFixed(3)
-    scrollCueEl.value.style.pointerEvents = p > 0.25 ? 'none' : 'auto'
-  }
-}
-
-onMounted(() => {
-  inputModality.value = detectInputModality()
-  cleanupScroll = mountScrollEngine()
-  unsubscribeHeroTick = onScrollTick(updateHeroScrollParallax)
-})
-
-onUnmounted(() => {
-  setFormingHovered(false)
-  if (pulseEchoTimer) {
-    clearTimeout(pulseEchoTimer)
-    pulseEchoTimer = null
-  }
-  if (rippleHideTimer) {
-    clearTimeout(rippleHideTimer)
-    rippleHideTimer = null
-  }
-  if (unsubscribeHeroTick) {
-    unsubscribeHeroTick()
-    unsubscribeHeroTick = null
-  }
-  if (cleanupScroll) {
-    cleanupScroll()
-    cleanupScroll = null
-  }
-})
 </script>
 
 <template>
-  <div
-    class="relative min-h-svh w-full bg-brand-void"
-    @click="onRootSurfaceClick"
-  >
-    <!-- Persistent Unified Signal Layer (Black -> Dark Gradient -> 18 Strands -> Star Particles) -->
-    <ConvergentSignalEngine />
+  <main id="top" class="w-full overflow-x-clip bg-brand-void text-white">
+    <!-- =========================================================================
+         SECTION 1: FLAGSHIP HERO STAGE (ISOLATED 2D -> 3D LOADER & EXACT BERTH)
+         Deterministic 3-Row × 12-Col Grid reserving exact future Header, Editorial,
+         & Pedestal geometry across phones, foldables, tablets, laptops & ultrawides.
+         ========================================================================= -->
+    <section
+      aria-label="Brandsta Hero Stage"
+      class="hero-flagship-section relative w-full"
+    >
+      <!-- Subtle Obsidian-Sapphire Stage Atmosphere -->
+      <div
+        aria-hidden="true"
+        class="hero-ambient-backdrop pointer-events-none absolute inset-0 z-0"
+      />
 
-    <!-- Tactile Bioluminescent Click-Origin Wave Ring (Anywhere Surface Feedback) -->
-    <span
-      v-if="clickRipple.active"
-      :key="clickRipple.id"
-      aria-hidden="true"
-      class="surface-click-ring pointer-events-none fixed left-0 top-0 z-30 h-14 w-14 rounded-full"
-      :style="{
-        '--rx': `${clickRipple.x}px`,
-        '--ry': `${clickRipple.y}px`,
-      }"
-    />
+      <div class="hero-grid-shell relative mx-auto w-full max-w-360">
+        <!-- ROW 1: Reserved Header Track (Empty for now) -->
+        <div aria-hidden="true" class="hero-header-reserve" />
 
-    <main class="relative z-10 w-full overflow-x-clip">
-      <!-- SECTION 1: 3-ROW CSS GRID HERO -->
-      <section
-        aria-labelledby="formation-heading"
-        class="relative grid min-h-svh w-full grid-rows-[0.82fr_auto_1.18fr] items-center gap-y-5 px-5 py-7 sm:gap-y-7 sm:px-12 sm:py-10 lg:px-20 lg:py-12 [@media(max-height:520px)]:grid-rows-[1fr_auto_1fr] [@media(max-height:520px)]:gap-y-2.5 [@media(max-height:520px)]:py-3.5"
-      >
-        <!-- Row 1: Top Counter-Weight Track -->
-        <div aria-hidden="true" class="w-full" />
+        <!-- ROW 2: Main 12-Column Hero Stage -->
+        <div class="hero-main-stage">
+          <!-- Reserved Editorial Slot (Top slot on stacked portrait; Left 7 cols on split landscape/desktop) -->
+          <div aria-hidden="true" class="hero-editorial-reserve" />
 
-        <!-- Row 2: Centered Negative-Space Typography Pocket -->
-        <div
-          ref="heroStackEl"
-          class="relative mx-auto flex w-full max-w-[46rem] flex-col items-center justify-center text-center will-change-transform"
-        >
-          <!-- Beat 3: ORIGIN Writes Letter-by-Letter (sr-only replaces prohibited span aria-label) -->
-          <span
-            class="relative mb-6 sm:mb-8 lg:mb-10 inline-flex items-center text-[0.7rem] sm:text-[0.78rem] font-medium uppercase text-white/84 select-none [@media(max-height:520px)]:mb-2.5 [@media(max-height:520px)]:text-[0.62rem]"
-          >
-            <span class="sr-only">ORIGIN</span>
-            <span
-              v-for="(ch, pIdx) in ORIGIN_CHARS"
-              :key="`prev-${pIdx}`"
-              aria-hidden="true"
-              class="char-write inline-block mr-[0.44em] last:mr-0"
-              :style="{
-                '--delay': `${HERO_CHOREOGRAPHY.previewStartMs + pIdx * HERO_CHOREOGRAPHY.previewCharStaggerMs}ms`,
-                '--dur': `${HERO_CHOREOGRAPHY.previewCharDurationMs}ms`,
-                '--rise': '8px',
-              }"
-            >{{ ch }}</span>
-          </span>
-
-          <!-- Beat 4: Something -> is -> forming. (Clean Accessible Heading + Unhidden Focusable Button) -->
-          <h1
-            id="formation-heading"
-            class="relative text-[2.6rem] 2xs:text-[3.1rem] sm:text-[4.4rem] lg:text-[5.2rem] xl:text-[5.85rem] 2xl:text-[6.35rem] font-bold leading-[1.04] tracking-[-0.035em] text-white select-none [@media(max-height:520px)]:text-[2.3rem]"
-          >
-            <span class="sr-only">Something is </span>
-
-            <!-- "Something" -->
-            <span aria-hidden="true" class="block">
-              <span
-                v-for="(ch, sIdx) in SOMETHING_CHARS"
-                :key="`some-${sIdx}`"
-                class="char-write inline-block"
-                :style="{
-                  '--delay': `${HERO_CHOREOGRAPHY.somethingStartMs + sIdx * HERO_CHOREOGRAPHY.somethingCharStaggerMs}ms`,
-                  '--dur': `${HERO_CHOREOGRAPHY.somethingCharDurationMs}ms`,
-                  '--rise': '12px',
-                }"
-              >{{ ch }}</span>
-            </span>
-
-            <!-- "is forming." (No aria-hidden here so focusable role="button" stays exposed) -->
-            <span class="mt-0.5 sm:mt-1.5 block">
-              <span aria-hidden="true" class="inline-flex mr-[0.22em]">
-                <span
-                  v-for="(ch, iIdx) in IS_CHARS"
-                  :key="`is-${iIdx}`"
-                  class="char-write inline-block"
-                  :style="{
-                    '--delay': `${HERO_CHOREOGRAPHY.isStartMs + iIdx * HERO_CHOREOGRAPHY.isCharStaggerMs}ms`,
-                    '--dur': `${HERO_CHOREOGRAPHY.isCharDurationMs}ms`,
-                    '--rise': '12px',
-                  }"
-                >{{ ch }}</span>
-              </span>
-
-              <span
-                data-resonant-hover
-                role="button"
-                tabindex="0"
-                aria-label="forming."
-                class="forming-accent relative inline-flex cursor-pointer text-brand-blue focus:outline-none focus-visible:underline"
-                :class="{ 'is-resonating': isFormingActive || isSurfacePulsing }"
-                @mouseenter="onFormingEnter"
-                @mouseleave="onFormingLeave"
-                @click.stop="onFormingClick($event)"
-                @keydown.enter.prevent="onFormingClick()"
-                @keydown.space.prevent="onFormingClick()"
-              >
-                <!-- One-Shot Brief Glow Flash on Write Completion (Settles to 0) -->
-                <span
-                  aria-hidden="true"
-                  class="forming-write-flash pointer-events-none absolute -inset-x-3 -inset-y-1 -z-10 rounded-full"
-                  :style="{ '--flash-delay': `${FORMING_FLASH_DELAY_MS}ms` }"
-                />
-
-                <!-- Subtle Tight Halo (0 Opacity in Idle — Fades In Gently on Hover / Surface Pulse) -->
-                <span
-                  aria-hidden="true"
-                  class="forming-hover-halo pointer-events-none absolute -inset-x-2.5 -inset-y-1 -z-10 rounded-full"
-                />
-
-                <span
-                  v-for="(ch, fIdx) in FORMING_CHARS"
-                  :key="`form-${fIdx}`"
-                  aria-hidden="true"
-                  class="forming-char-write inline-block"
-                  :style="{
-                    '--delay': `${HERO_CHOREOGRAPHY.formingStartMs + fIdx * HERO_CHOREOGRAPHY.formingCharStaggerMs}ms`,
-                    '--dur': `${HERO_CHOREOGRAPHY.formingCharDurationMs}ms`,
-                  }"
-                >{{ ch }}</span>
-              </span>
-            </span>
-          </h1>
-
-          <!-- Beat 5: Subtitle Writes Word-by-Word (sr-only replaces prohibited p aria-label) -->
-          <p
-            class="relative mt-5 sm:mt-7 lg:mt-8 max-w-[26rem] text-[0.96rem] 2xs:text-[1.05rem] sm:text-[1.22rem] xl:text-[1.34rem] font-normal leading-[1.58] tracking-[-0.01em] text-white/84 select-none [@media(max-height:520px)]:mt-2.5 [@media(max-height:520px)]:text-[0.88rem]"
-          >
-            <span class="sr-only">Every beginning carries a signal. Follow its journey.</span>
-
-            <span aria-hidden="true" class="flex flex-wrap justify-center">
-              <span
-                v-for="(word, w1Idx) in LEAD_LINE_1_WORDS"
-                :key="`l1-${w1Idx}`"
-                class="char-write inline-block mr-[0.28em] last:mr-0"
-                :style="{
-                  '--delay': `${HERO_CHOREOGRAPHY.leadLine1StartMs + w1Idx * HERO_CHOREOGRAPHY.leadLine1WordStaggerMs}ms`,
-                  '--dur': `${HERO_CHOREOGRAPHY.leadWordDurationMs}ms`,
-                  '--rise': '10px',
-                }"
-              >{{ word }}</span>
-            </span>
-
-            <span aria-hidden="true" class="mt-1 flex flex-wrap justify-center">
-              <span
-                v-for="(word, w2Idx) in LEAD_LINE_2_WORDS"
-                :key="`l2-${w2Idx}`"
-                class="char-write inline-block mr-[0.28em] last:mr-0"
-                :style="{
-                  '--delay': `${HERO_CHOREOGRAPHY.leadLine2StartMs + w2Idx * HERO_CHOREOGRAPHY.leadLine2WordStaggerMs}ms`,
-                  '--dur': `${HERO_CHOREOGRAPHY.leadWordDurationMs}ms`,
-                  '--rise': '10px',
-                }"
-              >{{ word }}</span>
-            </span>
-          </p>
-
-          <!-- Beat 5B: Signal Horizon Ignition Interactive Cue (Natural Token Semantics, Zero Prohibited ARIA) -->
-          <div
-            data-resonant-hover
-            class="signal-horizon-cue relative mt-6 sm:mt-8 lg:mt-9 inline-flex max-w-full items-center justify-center gap-2.5 sm:gap-4 px-2 py-1.5 select-none [@media(max-height:520px)]:mt-2.5 [@media(max-height:520px)]:py-0.5"
-            :class="{
-              'is-cue-hovered': isCueHovered,
-              'is-cue-pulsing': isSurfacePulsing,
-            }"
-            @mouseenter="onCueEnter"
-            @mouseleave="onCueLeave"
-          >
-            <!-- One-Shot Center-Outward Ignition Aura Flash -->
-            <span
-              aria-hidden="true"
-              class="cue-ignition-flash pointer-events-none absolute -inset-x-6 -inset-y-2 -z-10 rounded-full"
-              :style="{ '--cue-start': `${HERO_CHOREOGRAPHY.interactionCueStartMs}ms` }"
-            />
-
-            <!-- Center-Outward Igniting Tokens (Interactive Verbs + Architectural Copy) -->
-            <span
-              class="inline-flex flex-wrap items-center justify-center gap-x-[0.52em] gap-y-1 text-[0.58rem] 2xs:text-[0.63rem] sm:text-[0.7rem] font-medium uppercase leading-[1.55] tracking-[0.25em] [@media(max-height:520px)]:text-[0.54rem]"
-            >
-              <template
-                v-for="(token, tIdx) in cueTokens"
-                :key="`${inputModality}-${tIdx}-${token.text}`"
-              >
-                <button
-                  v-if="token.action"
-                  type="button"
-                  data-resonant-hover
-                  class="cue-token-ignite cue-verb-btn relative inline-flex items-center font-semibold text-brand-frost cursor-pointer focus:outline-none focus-visible:text-white"
-                  :style="{
-                    '--tok-delay': `${cueTokenDelayMs(tIdx, cueTokens.length)}ms`,
-                    '--tok-dur': `${HERO_CHOREOGRAPHY.interactionCueTokenDurationMs}ms`,
-                  }"
-                  @click.stop="onCueTokenClick(token.action, $event)"
-                >
-                  <span class="cue-verb-breathe inline-block">{{ token.text }}</span>
-                  <span
-                    aria-hidden="true"
-                    class="cue-verb-underline pointer-events-none absolute -bottom-0.5 inset-x-0 h-px origin-center"
-                  />
-                </button>
-
-                <span
-                  v-else
-                  class="cue-token-ignite inline-block text-white/58 transition-colors duration-300"
-                  :class="{ 'text-white/80': isCueHovered }"
-                  :style="{
-                    '--tok-delay': `${cueTokenDelayMs(tIdx, cueTokens.length)}ms`,
-                    '--tok-dur': `${HERO_CHOREOGRAPHY.interactionCueTokenDurationMs}ms`,
-                  }"
-                >{{ token.text }}</span>
-              </template>
-            </span>
+          <!-- Permanent 3D Resonator Berth (Centered on stacked portrait; Right 5 cols on split landscape/desktop) -->
+          <div class="hero-resonator-cell">
+            <div class="hero-resonator-sizing">
+              <BrandstaHeroResonator
+                @loader-state-change="isHeroLoaderRunning = $event"
+              />
+            </div>
           </div>
         </div>
 
-        <!-- Row 3: Beat 6 Parabolic Triple-Crescent SCROLL Indicator -->
-        <div class="flex w-full items-end justify-center self-end">
-          <button
-            ref="scrollCueEl"
-            type="button"
-            data-resonant-hover
-            aria-label="Scroll into the Formation"
-            class="scroll-cue-btn group flex flex-col items-center gap-3 pt-2 pb-1 cursor-pointer select-none focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-electric/60 rounded-md will-change-opacity [@media(max-height:520px)]:gap-1.5 [@media(max-height:520px)]:pb-0"
-            @click.stop="scrollToFormation"
-          >
-            <span
-              class="char-write flex flex-col items-center gap-3 [@media(max-height:520px)]:gap-1.5"
-              :style="{
-                '--delay': `${HERO_CHOREOGRAPHY.scrollCueStartMs}ms`,
-                '--dur': `${HERO_CHOREOGRAPHY.scrollCueDurationMs}ms`,
-                '--rise': '14px',
-              }"
-            >
-              <svg
-                viewBox="0 0 96 68"
-                class="h-[3.4rem] w-[4.8rem] sm:h-[3.95rem] sm:w-[5.6rem] overflow-visible [@media(max-height:520px)]:h-[2.3rem] [@media(max-height:520px)]:w-[3.3rem]"
-                xmlns="http://www.w3.org/2000/svg"
-                aria-hidden="true"
-              >
-                <defs>
-                  <radialGradient id="scrollCueAura" cx="50%" cy="66%" r="50%">
-                    <stop offset="0%" stop-color="var(--color-brand-electric)" stop-opacity="0.48" />
-                    <stop offset="48%" stop-color="var(--color-brand-blue)" stop-opacity="0.16" />
-                    <stop offset="100%" stop-color="var(--color-brand-obsidian)" stop-opacity="0" />
-                  </radialGradient>
+        <!-- ROW 3: Reserved Centered Pedestal Track (Buttons + Triad + Scroll Cue slot, empty for now) -->
+        <div aria-hidden="true" class="hero-pedestal-reserve" />
+      </div>
+    </section>
 
-                  <linearGradient id="crescentBellyGrad" x1="0%" y1="50%" x2="100%" y2="50%">
-                    <stop offset="0%" stop-color="var(--color-brand-blue)" stop-opacity="0" />
-                    <stop offset="20%" stop-color="var(--color-brand-electric)" stop-opacity="0.62" />
-                    <stop offset="50%" stop-color="var(--color-brand-frost)" stop-opacity="1" />
-                    <stop offset="80%" stop-color="var(--color-brand-electric)" stop-opacity="0.62" />
-                    <stop offset="100%" stop-color="var(--color-brand-blue)" stop-opacity="0" />
-                  </linearGradient>
-
-                  <radialGradient id="nadirSparkGlow" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
-                    <stop offset="30%" stop-color="var(--color-brand-ice)" stop-opacity="0.94" />
-                    <stop offset="68%" stop-color="var(--color-brand-blue)" stop-opacity="0.48" />
-                    <stop offset="100%" stop-color="var(--color-brand-blue)" stop-opacity="0" />
-                  </radialGradient>
-                </defs>
-
-                <g class="transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-110 [transform-origin:48px_42px]">
-                  <ellipse cx="48" cy="41" rx="40" ry="25" fill="url(#scrollCueAura)" class="cue-aura" />
-                </g>
-
-                <g class="transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-y-[1.5px]">
-                  <path
-                    d="M 18 7 Q 48 26 78 7 Q 48 23.2 18 7 Z"
-                    fill="url(#crescentBellyGrad)"
-                    class="crescent-wave crescent-wave-1"
-                  />
-                </g>
-
-                <g class="transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-y-[3px]">
-                  <path
-                    d="M 24 23 Q 48 42.5 72 23 Q 48 38.2 24 23 Z"
-                    fill="url(#crescentBellyGrad)"
-                    class="crescent-wave crescent-wave-2"
-                  />
-                </g>
-
-                <g class="transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-y-[4.5px]">
-                  <g class="crescent-wave crescent-wave-3">
-                    <path
-                      d="M 30 39 Q 48 57.5 66 39 Q 48 52.6 30 39 Z"
-                      fill="url(#crescentBellyGrad)"
-                    />
-                    <circle cx="48" cy="47.4" r="9.5" fill="url(#nadirSparkGlow)" />
-                    <circle cx="48" cy="47.4" r="1.65" class="fill-white" />
-                  </g>
-                </g>
-              </svg>
-
-              <span
-                class="pl-[0.44em] text-[0.62rem] sm:text-[0.68rem] font-medium uppercase tracking-[0.44em] text-white/78 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-y-[2px] group-hover:text-white"
-              >
-                SCROLL
-              </span>
+    <!-- =========================================================================
+         SECTION 2: 18-BUTTON EXTRAVAGANZA LAB + 6-VARIANT CURSOR SPECIMEN BAR
+         ========================================================================= -->
+    <section
+      id="button-extravaganza"
+      class="relative z-10 w-full border-t border-white/6 px-5 py-16 sm:px-10 sm:py-24 lg:px-16"
+      :class="isHeroLoaderRunning ? 'pointer-events-none' : ''"
+    >
+      <div class="mx-auto flex w-full max-w-336 flex-col gap-16">
+        <div class="flex flex-col items-center gap-6 text-center select-none">
+          <div class="pointer-events-none flex flex-col items-center gap-2">
+            <span class="text-[0.68rem] font-semibold tracking-[0.3em] text-white/45 uppercase">
+              RESONANT FLOW BUTTON · 18-VARIANT EXTRAVAGANZA
             </span>
-          </button>
-        </div>
-      </section>
+            <span class="text-xs font-normal tracking-[0.06em] text-white/65">
+              {{ lastTriggered }}
+            </span>
+          </div>
 
-      <!-- SECTION 2: FIXED VIEWPORT FORMATION STAGE + SCROLL RUNWAY -->
-      <FormationSlider />
-    </main>
-  </div>
+          <!-- Live 6-Variant Kinetic Cursor Test Strip (Hover & Click Each Pill) -->
+          <div class="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+            <div
+              v-for="spec in CURSOR_SPECIMENS"
+              :key="spec.id"
+              :class="[spec.cursorClass, spec.badgeTone]"
+              class="rounded-full border px-4 py-2 text-[0.6rem] font-medium tracking-[0.2em] uppercase transition-colors duration-200 lg:cursor-none"
+              @click="lastTriggered = `Cursor Specimen Tested: ${spec.label}`"
+            >
+              {{ spec.label }}
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-for="group in BUTTON_GROUPS"
+          :key="group.size"
+          class="flex flex-col items-center gap-8"
+        >
+          <h2 class="cursor-hoverable cursor-blue rounded-full px-4 py-1 text-[0.65rem] font-medium tracking-[0.28em] text-white/38 uppercase select-none lg:cursor-none">
+            {{ group.tier }}
+          </h2>
+
+          <div class="grid w-full grid-cols-1 place-items-center gap-x-8 gap-y-10 md:grid-cols-2 xl:grid-cols-3">
+            <div
+              v-for="item in group.items"
+              :key="item.id"
+              class="flex flex-col items-center gap-2.5"
+            >
+              <ResonantFlowButton
+                :label="item.label"
+                :size="item.size"
+                :variant="item.variant"
+                :fluid="item.fluid"
+                :arrow="item.arrow"
+                :href="item.href"
+                :class="item.cursorClass"
+                @action="onButtonAction(item)"
+              />
+              <span class="pointer-events-none text-[0.58rem] tracking-[0.18em] text-white/36 uppercase select-none">
+                {{ item.meta }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="bottom-lab-anchor"
+          class="mt-20 flex flex-col items-center gap-4 border-t border-white/10 pt-12 pb-8"
+        >
+          <span class="cursor-hoverable cursor-gold rounded-full px-4 py-1 text-[0.62rem] tracking-[0.26em] text-white/40 uppercase select-none lg:cursor-none">
+            HASH SCROLL ARRIVAL ANCHOR
+          </span>
+          <ResonantFlowButton
+            label="GLIDE BACK TO TOP"
+            variant="secondary"
+            fluid="gold"
+            size="md"
+            href="#top"
+            class="cursor-clickable cursor-gold"
+          />
+        </div>
+      </div>
+    </section>
+  </main>
 </template>
 
 <style scoped>
-/* Crisp Letter & Word Write-In (Zero Idle Halo) */
-.char-write {
-  opacity: 0;
-  will-change: transform, opacity;
-  animation: crispWriteIn var(--dur, 250ms) cubic-bezier(0.22, 1, 0.36, 1) var(--delay, 0ms) forwards;
+/* =========================================================================
+   HERO STAGE MULTI-DEVICE ARCHITECTURE
+   Base (< 360px): Ultra-compact phones & folded outer cover displays
+   ========================================================================= */
+.hero-flagship-section {
+  --hero-min-h: max(100svh, 600px);
+  --hero-pad-x: 1.25rem;
+  --hero-header-h: 3.5rem;
+  --hero-pedestal-h: 8.75rem;
+  --hero-editorial-h: minmax(6.75rem, 20svh);
+  --hero-resonator-w: clamp(9.25rem, 46vw, 10.875rem);
+  --hero-desktop-logo-scale: 1;
+
+  min-height: var(--hero-min-h);
+  background-color: #040a1a;
 }
 
-/* "forming." Letter Write with Momentary Glow Flash -> Clean Settle */
-.forming-char-write {
-  opacity: 0;
-  will-change: transform, opacity;
-  animation: formingGlowWrite var(--dur, 340ms) cubic-bezier(0.22, 1, 0.36, 1) var(--delay, 0ms) forwards;
-  transition:
-    color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    text-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+.hero-ambient-backdrop {
+  background:
+    radial-gradient(ellipse 68% 54% at 50% 52%, rgba(0, 56, 184, 0.12) 0%, transparent 72%),
+    linear-gradient(180deg, #040a1a 0%, #050d21 64%, #040a1a 100%);
 }
 
-/* Brief 1-Shot Glow Pulse Right as "forming." Completes Writing, Settling to 0 */
-.forming-write-flash {
-  opacity: 0;
-  background: radial-gradient(
-    ellipse 56% 52% at 50% 54%,
-    color-mix(in srgb, var(--color-brand-electric) 26%, transparent) 0%,
-    transparent 72%
-  );
-  will-change: opacity, transform;
-  animation: formingBriefFlash 360ms cubic-bezier(0.22, 1, 0.36, 1) var(--flash-delay, 2960ms) forwards;
+.hero-grid-shell {
+  display: grid;
+  grid-template-rows: var(--hero-header-h) minmax(0, 1fr) var(--hero-pedestal-h);
+  min-height: var(--hero-min-h);
+  padding-inline: var(--hero-pad-x);
 }
 
-/* Hover-Only Halo (Completely Off in Idle; Mild & Restrained When Hovered) */
-.forming-hover-halo {
-  opacity: 0;
-  background: radial-gradient(
-    ellipse 52% 48% at 50% 55%,
-    color-mix(in srgb, var(--color-brand-blue) 14%, transparent) 0%,
-    transparent 70%
-  );
-  transform: scale(0.94);
-  transition:
-    opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+/* Stacked Centered Portrait Default (< 1024px) */
+.hero-main-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--hero-editorial-h) minmax(0, 1fr);
+  align-items: center;
+  justify-items: center;
+  gap: 0.75rem;
+  width: 100%;
 }
 
-.forming-accent {
-  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform;
+.hero-editorial-reserve {
+  width: 100%;
+  height: 100%;
 }
 
-.forming-accent.is-resonating {
-  transform: translate3d(0, -1.5px, 0);
+.hero-resonator-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
-.forming-accent.is-resonating .forming-hover-halo {
-  opacity: 1;
-  transform: scale(1);
+.hero-resonator-sizing {
+  width: calc(var(--hero-resonator-w) * var(--hero-desktop-logo-scale, 1));
+  overflow: visible;
 }
 
-.forming-accent.is-resonating .forming-char-write {
-  color: var(--color-brand-electric);
-  text-shadow: 0 0 24px color-mix(in srgb, var(--color-brand-electric) 48%, transparent);
-}
-
-.forming-accent:active {
-  transform: translate3d(0, 0.5px, 0) scale(0.985);
-}
-
-/* Tactile Bioluminescent Click-Origin Ring */
-.surface-click-ring {
-  border: 1px solid color-mix(in srgb, var(--color-brand-ice) 62%, transparent);
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--color-brand-electric) 24%, transparent) 0%,
-    transparent 70%
-  );
-  will-change: transform, opacity;
-  animation: surfaceRingExpand 520ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-/* Beat 5B: Signal Horizon Ignition Entrance & Interactive States */
-.cue-ignition-flash {
-  opacity: 0;
-  background: radial-gradient(
-    ellipse 54% 58% at 50% 50%,
-    color-mix(in srgb, var(--color-brand-electric) 28%, transparent) 0%,
-    color-mix(in srgb, var(--color-brand-blue) 10%, transparent) 48%,
-    transparent 76%
-  );
-  will-change: transform, opacity;
-  animation: cueHorizonFlash 640ms cubic-bezier(0.22, 1, 0.36, 1) var(--cue-start, 3800ms) forwards;
-}
-
-.cue-wing {
-  opacity: 0;
-  transform: scaleX(0);
-  will-change: transform, opacity;
-  animation: cueWingUnfurl var(--wing-dur, 540ms) cubic-bezier(0.22, 1, 0.36, 1) var(--wing-delay, 3800ms) forwards;
-  transition:
-    filter 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.cue-wing--left {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in srgb, var(--color-brand-blue) 68%, transparent) 52%,
-    var(--color-brand-frost) 100%
-  );
-}
-
-.cue-wing--right {
-  background: linear-gradient(
-    90deg,
-    var(--color-brand-frost) 0%,
-    color-mix(in srgb, var(--color-brand-blue) 68%, transparent) 48%,
-    transparent 100%
-  );
-}
-
-.signal-horizon-cue.is-cue-hovered .cue-wing,
-.signal-horizon-cue.is-cue-pulsing .cue-wing {
-  filter: drop-shadow(0 0 8px var(--color-brand-electric));
-}
-
-.cue-token-ignite {
-  opacity: 0;
-  will-change: transform, opacity;
-  animation: cueTokenIgnite var(--tok-dur, 420ms) cubic-bezier(0.22, 1, 0.36, 1) var(--tok-delay, 3800ms) forwards;
-}
-
-.cue-verb-btn {
-  transition:
-    color 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    text-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.cue-verb-breathe {
-  animation: cueVerbAmbient 3.4s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
-}
-
-.cue-verb-underline {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--color-brand-electric) 50%,
-    transparent 100%
-  );
-  opacity: 0.45;
-  transform: scaleX(0.42);
-  transition:
-    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.cue-verb-btn:hover,
-.signal-horizon-cue.is-cue-pulsing .cue-verb-btn {
-  color: #ffffff;
-  transform: translate3d(0, -1px, 0);
-  text-shadow: 0 0 16px color-mix(in srgb, var(--color-brand-electric) 68%, transparent);
-}
-
-.cue-verb-btn:hover .cue-verb-underline,
-.cue-verb-btn:focus-visible .cue-verb-underline,
-.signal-horizon-cue.is-cue-pulsing .cue-verb-underline {
-  opacity: 1;
-  transform: scaleX(1);
-}
-
-.cue-verb-btn:active {
-  transform: translate3d(0, 0.5px, 0) scale(0.96);
-}
-
-.cue-aura {
-  will-change: opacity, transform;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: cueAuraBreathe 3.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
-}
-
-.crescent-wave {
-  will-change: transform, opacity;
-}
-
-.crescent-wave-1 {
-  animation: crescentCascade1 2.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-}
-
-.crescent-wave-2 {
-  animation: crescentCascade2 2.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-}
-
-.crescent-wave-3 {
-  animation: crescentCascade3 2.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-}
-
-@keyframes crispWriteIn {
-  0% {
-    opacity: 0;
-    transform: translate3d(0, var(--rise, 10px), 0);
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
+/* 2xs (360px+): Standard modern Android & iPhone portrait */
+@media (min-width: 360px) {
+  .hero-flagship-section {
+    --hero-min-h: max(100svh, 640px);
+    --hero-pad-x: 1.5rem;
+    --hero-header-h: 4rem;
+    --hero-pedestal-h: 9.75rem;
+    --hero-editorial-h: minmax(8rem, 22svh);
+    --hero-resonator-w: clamp(10.75rem, 45vw, 13rem);
   }
 }
 
-@keyframes formingGlowWrite {
-  0% {
-    opacity: 0;
-    color: var(--color-brand-ice);
-    transform: translate3d(0, 12px, 0);
-    text-shadow: 0 0 0 transparent;
-  }
-  52% {
-    opacity: 1;
-    color: var(--color-brand-frost);
-    transform: translate3d(0, -1px, 0);
-    text-shadow:
-      0 0 18px color-mix(in srgb, var(--color-brand-ice) 78%, transparent),
-      0 0 34px color-mix(in srgb, var(--color-brand-blue) 62%, transparent);
-  }
-  100% {
-    opacity: 1;
-    color: var(--color-brand-blue);
-    transform: translate3d(0, 0, 0);
-    text-shadow: 0 0 12px color-mix(in srgb, var(--color-brand-blue) 18%, transparent);
+/* xs (480px+): Large phones & narrow split-screen windows */
+@media (min-width: 480px) {
+  .hero-flagship-section {
+    --hero-min-h: max(100svh, 680px);
+    --hero-pad-x: 2rem;
+    --hero-header-h: 4.25rem;
+    --hero-pedestal-h: 10.25rem;
+    --hero-editorial-h: minmax(9rem, 23svh);
+    --hero-resonator-w: clamp(12.5rem, 40vw, 14.75rem);
   }
 }
 
-@keyframes formingBriefFlash {
-  0% {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  42% {
-    opacity: 1;
-    transform: scale(1.04);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1);
+/* sm (640px+): Small portrait tablets */
+@media (min-width: 640px) {
+  .hero-flagship-section {
+    --hero-min-h: max(100svh, 740px);
+    --hero-pad-x: 2.5rem;
+    --hero-header-h: 4.5rem;
+    --hero-pedestal-h: 10.75rem;
+    --hero-editorial-h: minmax(10.25rem, 24svh);
+    --hero-resonator-w: clamp(14.25rem, 35vw, 16.75rem);
   }
 }
 
-@keyframes surfaceRingExpand {
-  0% {
-    opacity: 0.92;
-    transform: translate3d(calc(var(--rx, 0px) - 50%), calc(var(--ry, 0px) - 50%), 0) scale(0.22);
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(calc(var(--rx, 0px) - 50%), calc(var(--ry, 0px) - 50%), 0) scale(1.75);
-  }
-}
-
-@keyframes cueHorizonFlash {
-  0% {
-    opacity: 0;
-    transform: scaleX(0.25) scaleY(0.7);
-  }
-  38% {
-    opacity: 0.95;
-    transform: scaleX(1.04) scaleY(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scaleX(1.18) scaleY(1.05);
+/* md (768px+): iPad & portrait tablets */
+@media (min-width: 768px) {
+  .hero-flagship-section {
+    --hero-min-h: max(100svh, 800px);
+    --hero-pad-x: 3.25rem;
+    --hero-header-h: 4.75rem;
+    --hero-pedestal-h: 11.25rem;
+    --hero-editorial-h: minmax(11.5rem, 24svh);
+    --hero-resonator-w: clamp(15.75rem, 33vw, 18.5rem);
   }
 }
 
-@keyframes cueWingUnfurl {
-  0% {
-    opacity: 0;
-    transform: scaleX(0);
-  }
-  55% {
-    opacity: 1;
-    transform: scaleX(1.08);
-  }
-  100% {
-    opacity: 0.78;
-    transform: scaleX(1);
+/* UNFOLDED FOLDABLE PORTRAIT-SQUARE (600px–1023px, aspect 4/5 to 10/11):
+   Prevents oversized vertical bloat on nearly-square inner foldable glass */
+@media (min-width: 600px) and (max-width: 1023px) and (min-aspect-ratio: 4/5) and (max-aspect-ratio: 10/11) {
+  .hero-flagship-section {
+    --hero-min-h: max(100svh, 680px);
+    --hero-header-h: 4rem;
+    --hero-pedestal-h: 9.25rem;
+    --hero-editorial-h: minmax(8.25rem, 19svh);
+    --hero-resonator-w: clamp(12.5rem, min(32vw, 30svh), 15.5rem);
   }
 }
 
-@keyframes cueTokenIgnite {
-  0% {
-    opacity: 0;
-    transform: translate3d(0, 7px, 0) scale(0.94);
-    filter: brightness(1.85);
+/* UNFOLDED FOLDABLE SQUARE-TO-WIDE (660px–1023px, aspect >= 10/11 — Z Fold, Pixel Fold, Open):
+   Pivots into the 12-Col Left-Right Split so wide square glass breathes effortlessly */
+@media (min-width: 660px) and (max-width: 1023px) and (min-aspect-ratio: 10/11) {
+  .hero-flagship-section {
+    --hero-min-h: max(100svh, 640px);
+    --hero-pad-x: 2.25rem;
+    --hero-header-h: 4rem;
+    --hero-pedestal-h: 8.75rem;
+    --hero-resonator-w: clamp(12.75rem, min(30vw, 37svh), 16.75rem);
   }
-  50% {
-    opacity: 1;
-    transform: translate3d(0, -0.5px, 0) scale(1.01);
-    filter: brightness(1.35);
+
+  .hero-main-stage {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
+    gap: 1.5rem;
   }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-    filter: brightness(1);
+
+  .hero-editorial-reserve {
+    grid-column: span 7 / span 7;
+  }
+
+  .hero-resonator-cell {
+    grid-column: span 5 / span 5;
   }
 }
 
-@keyframes cueVerbAmbient {
-  0% {
-    text-shadow: 0 0 8px color-mix(in srgb, var(--color-brand-blue) 18%, transparent);
+/* COMPACT ROTATED MOBILE LANDSCAPE (max-height: 540px):
+   Clean horizontal split so rotated phones fit without clipping */
+@media (max-width: 1023px) and (max-height: 540px) and (orientation: landscape) {
+  .hero-flagship-section {
+    --hero-min-h: max(100svh, 480px);
+    --hero-pad-x: 2rem;
+    --hero-header-h: 3rem;
+    --hero-pedestal-h: 6.25rem;
+    --hero-resonator-w: clamp(9.25rem, 34svh, 12.25rem);
   }
-  100% {
-    text-shadow: 0 0 14px color-mix(in srgb, var(--color-brand-electric) 46%, transparent);
+
+  .hero-main-stage {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
+    gap: 1.25rem;
+  }
+
+  .hero-editorial-reserve {
+    grid-column: span 7 / span 7;
+  }
+
+  .hero-resonator-cell {
+    grid-column: span 5 / span 5;
   }
 }
 
-@keyframes cueAuraBreathe {
-  0% {
-    opacity: 0.65;
-    transform: scale(0.92);
+/* lg (1024px+): Laptops & Landscape Tablets -> Monument-Scaled 12-Column Asymmetric Split */
+@media (min-width: 1024px) {
+  .hero-flagship-section {
+    --hero-min-h: max(100svh, 720px);
+    --hero-pad-x: 3.75rem;
+    --hero-header-h: 4.75rem;
+    --hero-pedestal-h: 10.5rem;
+    --hero-desktop-logo-scale: 1;
+    --hero-resonator-w: clamp(19.5rem, min(33.5vw, 52svh), 25.5rem);
   }
-  100% {
-    opacity: 1;
-    transform: scale(1.08);
+
+  .hero-ambient-backdrop {
+    background:
+      radial-gradient(ellipse 48% 60% at 74% 48%, rgba(0, 64, 212, 0.16) 0%, transparent 74%),
+      linear-gradient(180deg, #040a1a 0%, #050d21 64%, #040a1a 100%);
+  }
+
+  .hero-main-stage {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
+    gap: 2.25rem;
+  }
+
+  .hero-editorial-reserve {
+    grid-column: span 7 / span 7;
+  }
+
+  .hero-resonator-cell {
+    grid-column: span 5 / span 5;
   }
 }
 
-@keyframes crescentCascade1 {
-  0%, 100% {
-    opacity: 0.24;
-    transform: translate3d(0, -1.5px, 0);
+/* xl (1280px+): Standard Desktops */
+@media (min-width: 1280px) {
+  .hero-flagship-section {
+    --hero-min-h: max(100svh, 760px);
+    --hero-pad-x: 4.5rem;
+    --hero-header-h: 5rem;
+    --hero-pedestal-h: 11rem;
+    --hero-resonator-w: clamp(22.5rem, min(33vw, 55svh), 29.5rem);
   }
-  28% {
-    opacity: 0.72;
-    transform: translate3d(0, 1.5px, 0);
-  }
-  65% {
-    opacity: 0.28;
-    transform: translate3d(0, 0, 0);
+
+  .hero-main-stage {
+    gap: 3rem;
   }
 }
 
-@keyframes crescentCascade2 {
-  0%, 100% {
-    opacity: 0.42;
-    transform: translate3d(0, -1.5px, 0);
-  }
-  44% {
-    opacity: 0.96;
-    transform: translate3d(0, 2px, 0);
-  }
-  78% {
-    opacity: 0.48;
-    transform: translate3d(0, 0, 0);
+/* SHORT-HEIGHT DESKTOP / WINDOWS LAPTOP GUARD (e.g., 1366x768 or 1536x864 @ 125% scale) */
+@media (min-width: 1024px) and (max-height: 760px) {
+  .hero-flagship-section {
+    --hero-min-h: max(100svh, 660px);
+    --hero-header-h: 4rem;
+    --hero-pedestal-h: 8.75rem;
+    --hero-resonator-w: clamp(17.5rem, min(31vw, 49svh), 24rem);
   }
 }
 
-@keyframes crescentCascade3 {
-  0%, 100% {
-    opacity: 0.55;
-    transform: translate3d(0, -1px, 0);
+/* 2xl & Ultrawides (1536px+) */
+@media (min-width: 1536px) {
+  .hero-flagship-section {
+    --hero-min-h: max(100svh, 820px);
+    --hero-pad-x: 5rem;
+    --hero-header-h: 5.25rem;
+    --hero-pedestal-h: 11.5rem;
+    --hero-resonator-w: clamp(25.5rem, min(31vw, 56svh), 32rem);
   }
-  60% {
-    opacity: 1;
-    transform: translate3d(0, 2.5px, 0);
-  }
-  88% {
-    opacity: 0.62;
-    transform: translate3d(0, 0.5px, 0);
+
+  .hero-main-stage {
+    gap: 3.5rem;
   }
 }
 </style>
