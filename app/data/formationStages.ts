@@ -77,6 +77,6 @@ export const FORMATION_STAGES: FormationStageItem[] = [
     launchText: 'ARRIVAL',
     launchDate: '24 · 11 · 26',
     launchTime: '21:00',
-    unlocked: false,
+    unlocked: true,
   },
 ]
