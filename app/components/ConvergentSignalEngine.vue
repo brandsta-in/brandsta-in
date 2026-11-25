@@ -16,12 +16,9 @@ const svgH = ref(900)
 
 const RIBBON_SAMPLES = 72
 const SPINDLE_SAMPLES = 10
-const WAKE_SAMPLES = 36
 const TWO_PI = Math.PI * 2
 
 const engineStageEl = ref<HTMLDivElement | null>(null)
-const worldGroupEl = ref<SVGGElement | null>(null)
-const clipRectEl = ref<SVGRectElement | null>(null)
 const pulseGroupEl = ref<SVGGElement | null>(null)
 const auraCircleEl = ref<SVGCircleElement | null>(null)
 const ring1El = ref<SVGCircleElement | null>(null)
@@ -3301,10 +3298,10 @@ onUnmounted(() => {
             <stop offset="100%" stop-color="#1d4ed8" stop-opacity="0" />
           </radialGradient>
           <radialGradient id="brandstaWaveFieldAuraGrad" cx="54%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#388bff" stop-opacity="0.46" />
-            <stop offset="45%" stop-color="#0d5eff" stop-opacity="0.26" />
-            <stop offset="76%" stop-color="#f59e0b" stop-opacity="0.12" />
-            <stop offset="100%" stop-color="#002699" stop-opacity="0" />
+            <stop offset="0%" stop-color="#388bff" stop-opacity="0.44" />
+            <stop offset="45%" stop-color="#0d5eff" stop-opacity="0.24" />
+            <stop offset="76%" stop-color="#0639b8" stop-opacity="0.09" />
+            <stop offset="100%" stop-color="#001a66" stop-opacity="0" />
           </radialGradient>
           <linearGradient id="brandstaWaveArcBlueGrad" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stop-color="#0d5eff" stop-opacity="0" />
@@ -3602,10 +3599,10 @@ onUnmounted(() => {
   mix-blend-mode: plus-lighter;
 }
 
-/* BACKWARD-COMPATIBLE OPTION: Uncomment below (and comment above) for softer classic crossings
-.crossing-blend {
+/* BACKWARD-COMPATIBLE OPTION: Uncomment below for softer classic crossings */
+/* .crossing-blend {
   mix-blend-mode: screen;
-}
-*/
+} */
+
 
 </style>

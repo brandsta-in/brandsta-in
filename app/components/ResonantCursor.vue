@@ -71,7 +71,6 @@ let rafId: number | null = null
 let scrollCheckRafId: number | null = null
 let lastTs: number = 0
 let isPageHidden = false
-let prefersReducedMotion = false
 let lastInspectedTarget: EventTarget | null = null
 
 const tierClass = computed(() => `tier-${activeTier.value}`)
@@ -221,7 +220,7 @@ function tick(ts: number) {
 
   const dist = Math.hypot(dx, dy)
   const targetStretch =
-    activeTier.value !== 'default' || isPressed.value || prefersReducedMotion
+    activeTier.value !== 'default' || isPressed.value
       ? 0
       : Math.min(CURSOR_CONFIG.maxVelocityStretch, dist * CURSOR_CONFIG.velocityStretchGain)
   smoothStretch += (targetStretch - smoothStretch) * stretchAlpha
@@ -270,7 +269,7 @@ function tick(ts: number) {
 }
 
 function triggerClickShockwave(x: number, y: number) {
-  if (prefersReducedMotion || !pulsePosEl.value || !pulseSvgEl.value) return
+  if (!pulsePosEl.value || !pulseSvgEl.value) return
 
   pulsePosEl.value.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`
   const startScale =
@@ -367,7 +366,6 @@ onMounted(() => {
   const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches
   if (!finePointer) return
 
-  prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   isEnabled.value = true
 
   window.addEventListener('pointermove', onPointerMove, { passive: true })
@@ -739,9 +737,4 @@ onUnmounted(() => {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .cursor-orbital-rotator {
-    animation: none;
-  }
-}
 </style>

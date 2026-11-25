@@ -1,49 +1,13 @@
 <!-- app/components/launch/BrandstaHeroResonator.vue -->
 <script setup lang="ts">
-import { ref, shallowRef, computed, useId, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, useId, onMounted, onBeforeUnmount } from 'vue'
 import { useNuxtApp } from '#imports'
 import {
   RESONATOR_PATHS,
   HERO_LOADER_CHOREOGRAPHY,
   HERO_RESONATOR_ANCHOR_CONFIG,
-  HERO_HARMONIC_TRACE_CONFIG,
-  LEFT_TRACE_FILAMENTS,
-  RIGHT_TRACE_FILAMENTS,
   type ClickResonancePayload,
-  type LeftTraceGradientKey,
-  type RightTraceGradientKey,
 } from '~/data/heroResonatorLoaderConfig'
-
-interface HarmonicTraceFrame {
-  masterOpacity: string
-  portAuraOpacity: string
-  rimOpacity: string
-  capYieldStopOpacity: string
-  leftGradX2: string
-  rightGradX2: string
-  leftBodyGradX2: string
-  rightBodyGradX2: string
-  overlapSolidOffset: string
-  fluidCrestOffsetA: string
-  fluidCrestOffsetB: string
-  tailFeatherOffset: string
-  leftBodyD: string
-  rightBodyD: string
-  leftUpperRimD: string
-  leftLowerRimD: string
-  rightUpperRimD: string
-  rightLowerRimD: string
-  leftAuraD: string
-  rightAuraD: string
-  leftPaths: string[]
-  rightPaths: string[]
-}
-
-interface TaperedBodyAndRims {
-  bodyD: string
-  upperRimD: string
-  lowerRimD: string
-}
 
 const emit = defineEmits<{
   loaderStateChange: [active: boolean]
@@ -84,9 +48,6 @@ const waveAmbientGlow = ref(startsInLoaderMode ? 0 : 0.24)
 // 0.92s Click-Triggered Pakka Brandsta-Blue Wave Aura Intensity (0..1)
 const clickAuraLevel = ref(0)
 
-// Top-Overlapping Horizontal Fluid Wave Extension Frame (null at rest => 0 extra DOM & 0 CPU/GPU cost)
-const traceFrame = shallowRef<HarmonicTraceFrame | null>(null)
-
 // Faster Left-to-Right Alloy Polish Progress & Opacity (~2-wave interval)
 const alloyPolishProgress = ref(0)
 const alloyPolishOpacity = ref(0)
@@ -97,18 +58,6 @@ const wavePhaseOffset = ref(0)
 // 7 stepped machined silver-slate extrusion slices (backmost slice 7 -> frontmost slice 1)
 const TITANIUM_SLICE_FACTORS = [1.0, 0.85, 0.71, 0.57, 0.43, 0.29, 0.14] as const
 const WAVE_SLICE_FACTORS = [1.0, 0.8, 0.6, 0.4, 0.2] as const
-
-// Pre-allocated zero-GC geometry buffers
-const TRACE_SAMPLES = HERO_HARMONIC_TRACE_CONFIG.sampleCount
-const BODY_SAMPLES = HERO_HARMONIC_TRACE_CONFIG.bodySampleCount
-const tracePtsX = new Float32Array(TRACE_SAMPLES)
-const tracePtsY = new Float32Array(TRACE_SAMPLES)
-const bodyCenterX = new Float32Array(BODY_SAMPLES)
-const bodyCenterY = new Float32Array(BODY_SAMPLES)
-const bodyUpperX = new Float32Array(BODY_SAMPLES)
-const bodyUpperY = new Float32Array(BODY_SAMPLES)
-const bodyLowerX = new Float32Array(BODY_SAMPLES)
-const bodyLowerY = new Float32Array(BODY_SAMPLES)
 
 function clamp(v: number, min: number, max: number): number {
   return v < min ? min : v > max ? max : v
@@ -155,10 +104,6 @@ function easeVeilDissolve(t: number): number {
   return solveCubicBezier(0.42, 0.0, 0.22, 1.0, t)
 }
 
-function easeTraceUnfurl(t: number): number {
-  return solveCubicBezier(0.18, 0.84, 0.24, 1.0, t)
-}
-
 function easeAlloySweep(t: number): number {
   return solveCubicBezier(0.28, 0.0, 0.22, 1.0, t)
 }
@@ -175,228 +120,6 @@ function evaluateClickAuraEnvelope(elapsed: number): number {
   return Math.pow(Math.sin(Math.PI * warped), 1.32)
 }
 
-function leftTraceGradUrl(key: LeftTraceGradientKey): string {
-  if (key === 'glacierSpec') return `url(#leftTraceGlacierSpecGrad-${uid})`
-  if (key === 'sapphireDeep') return `url(#leftTraceSapphireDeepGrad-${uid})`
-  return `url(#leftTraceCobaltFluidGrad-${uid})`
-}
-
-function rightTraceGradUrl(key: RightTraceGradientKey): string {
-  if (key === 'goldSpecular') return `url(#rightTraceGoldSpecularGrad-${uid})`
-  if (key === 'bronzeDeep') return `url(#rightTraceBronzeDeepGrad-${uid})`
-  return `url(#rightTraceGoldMoltenGrad-${uid})`
-}
-
-function evaluateHarmonicTraceY(
-  u: number,
-  frontU: number,
-  ampScale: number,
-  phaseOffset: number,
-  slotOffsetSvg: number,
-  timeAmpScale: number,
-): number {
-  // Exact centerline bridge from inner straight segment (319.62) to outer port cap (320.22)
-  const rootY = lerp(
-    HERO_HARMONIC_TRACE_CONFIG.innerOriginY,
-    HERO_HARMONIC_TRACE_CONFIG.outerOriginY,
-    smoothstep(0.0, HERO_HARMONIC_TRACE_CONFIG.innerOverlapEndU, u),
-  )
-
-  // Strictly 0 vertical wave inside the inner-wave overlap zone, then blooms smoothly outside port
-  const collar = Math.pow(
-    smoothstep(
-      HERO_HARMONIC_TRACE_CONFIG.collarStartU,
-      HERO_HARMONIC_TRACE_CONFIG.collarEndU,
-      u,
-    ),
-    1.42,
-  )
-  const spatialDecay =
-    Math.pow(Math.max(0, 1 - u), HERO_HARMONIC_TRACE_CONFIG.spatialDampingExp) *
-    (1 - smoothstep(0.82, 1.0, u))
-
-  const frontPinch =
-    frontU < 0.995 ? smoothstep(frontU, Math.max(0, frontU - 0.18), u) : 1.0
-
-  const adjU = Math.max(0, u - HERO_HARMONIC_TRACE_CONFIG.collarStartU)
-  const theta =
-    adjU * HERO_HARMONIC_TRACE_CONFIG.oscillationCycles * Math.PI * 2 -
-    tracePhaseRad +
-    phaseOffset
-
-  const waveDy =
-    Math.sin(theta) *
-    HERO_HARMONIC_TRACE_CONFIG.peakAmplitudeSvg *
-    ampScale *
-    timeAmpScale *
-    collar *
-    spatialDecay *
-    frontPinch
-
-  const slotEnvelope = smoothstep(0.02, 0.12, u) * (1 - collar * 0.62) * frontPinch
-  return rootY + slotOffsetSvg * slotEnvelope + waveDy
-}
-
-function buildQuadraticCurveFromArrays(
-  xs: Float32Array,
-  ys: Float32Array,
-  count: number,
-): string {
-  if (count < 2) return ''
-  const x0 = xs[0] ?? 0
-  const y0 = ys[0] ?? 0
-  if (count === 2) {
-    return `M${x0.toFixed(2)} ${y0.toFixed(2)}L${(xs[1] ?? x0).toFixed(2)} ${(ys[1] ?? y0).toFixed(2)}`
-  }
-
-  const x1 = xs[1] ?? x0
-  const y1 = ys[1] ?? y0
-  let d = `M${x0.toFixed(2)} ${y0.toFixed(2)}L${((x0 + x1) * 0.5).toFixed(2)} ${((y0 + y1) * 0.5).toFixed(2)}`
-
-  for (let i = 1; i < count - 1; i++) {
-    const xi = xs[i] ?? 0
-    const yi = ys[i] ?? 0
-    const xn = xs[i + 1] ?? xi
-    const yn = ys[i + 1] ?? yi
-    d += `Q${xi.toFixed(2)} ${yi.toFixed(2)} ${((xi + xn) * 0.5).toFixed(2)} ${((yi + yn) * 0.5).toFixed(2)}`
-  }
-
-  const last = count - 1
-  d += `L${(xs[last] ?? x0).toFixed(2)} ${(ys[last] ?? y0).toFixed(2)}`
-  return d
-}
-
-function buildFilamentTracePath(
-  side: 'left' | 'right',
-  frontU: number,
-  liveSpanSvg: number,
-  ampScale: number,
-  phaseOffset: number,
-  slotOffsetSvg: number,
-  timeAmpScale: number,
-  startU = 0,
-): string {
-  if (frontU <= startU + 0.01) return ''
-  const dir = side === 'right' ? 1 : -1
-  const originX =
-    side === 'right'
-      ? HERO_HARMONIC_TRACE_CONFIG.rightOriginX
-      : HERO_HARMONIC_TRACE_CONFIG.leftOriginX
-  const activeCount = Math.max(8, Math.min(TRACE_SAMPLES, Math.ceil((frontU - startU) * TRACE_SAMPLES)))
-
-  for (let i = 0; i < activeCount; i++) {
-    const u = lerp(startU, frontU, i / (activeCount - 1))
-    tracePtsX[i] = originX + dir * u * liveSpanSvg
-    tracePtsY[i] = evaluateHarmonicTraceY(
-      u,
-      frontU,
-      ampScale,
-      phaseOffset,
-      slotOffsetSvg,
-      timeAmpScale,
-    )
-  }
-
-  return buildQuadraticCurveFromArrays(tracePtsX, tracePtsY, activeCount)
-}
-
-/**
- * Builds BOTH the fuller-entrance tapered fluid wave body AND its two open upper/lower
- * rim paths (zero vertical end-caps) so `#innerWaveGeo`'s white-ice outline flows seamlessly
- * past both ports and fades slowly outward.
- */
-function buildTaperedWaveBodyAndRims(
-  side: 'left' | 'right',
-  frontU: number,
-  liveSpanSvg: number,
-  timeAmpScale: number,
-): TaperedBodyAndRims {
-  const maxBodyU = frontU * HERO_HARMONIC_TRACE_CONFIG.extensionBodyEndU
-  if (maxBodyU <= 0.018) {
-    return { bodyD: '', upperRimD: '', lowerRimD: '' }
-  }
-
-  const dir = side === 'right' ? 1 : -1
-  const originX =
-    side === 'right'
-      ? HERO_HARMONIC_TRACE_CONFIG.rightOriginX
-      : HERO_HARMONIC_TRACE_CONFIG.leftOriginX
-  const baseHalfH = HERO_HARMONIC_TRACE_CONFIG.portBodyHalfHeightSvg
-  const plateauEnd = HERO_HARMONIC_TRACE_CONFIG.portPlateauEndU
-
-  for (let i = 0; i < BODY_SAMPLES; i++) {
-    const u = (i / (BODY_SAMPLES - 1)) * maxBodyU
-    bodyCenterX[i] = originX + dir * u * liveSpanSvg
-    bodyCenterY[i] = evaluateHarmonicTraceY(u, frontU, 1.0, 0.0, 0.0, timeAmpScale)
-  }
-
-  const last = BODY_SAMPLES - 1
-  for (let i = 0; i < BODY_SAMPLES; i++) {
-    const u = (i / last) * maxBodyU
-    const taperProgress = clamp(
-      (u - plateauEnd) / Math.max(0.05, maxBodyU - plateauEnd),
-      0,
-      1,
-    )
-    const plateauEase = 1 - smoothstep(0.0, plateauEnd, u) * 0.04
-    const hw =
-      baseHalfH *
-      plateauEase *
-      Math.pow(Math.max(0, 1 - taperProgress), HERO_HARMONIC_TRACE_CONFIG.bodyTaperExp)
-
-    const prevI = i > 0 ? i - 1 : 0
-    const nextI = i < last ? i + 1 : last
-    const dx = (bodyCenterX[nextI] ?? 0) - (bodyCenterX[prevI] ?? 0)
-    const dy = (bodyCenterY[nextI] ?? 0) - (bodyCenterY[prevI] ?? 0)
-    const len = Math.hypot(dx, dy) || 1
-
-    // Ensure upperEdge is always visually above (smaller SVG Y) and lowerEdge below (larger SVG Y)
-    let nx = -dy / len
-    let ny = dx / len
-    if (ny > 0) {
-      nx = -nx
-      ny = -ny
-    }
-
-    const cx = bodyCenterX[i] ?? 0
-    const cy = bodyCenterY[i] ?? 0
-    bodyUpperX[i] = cx + nx * hw
-    bodyUpperY[i] = cy + ny * hw
-    bodyLowerX[i] = cx - nx * hw
-    bodyLowerY[i] = cy - ny * hw
-  }
-
-  let bodyD = `M${(bodyUpperX[0] ?? 0).toFixed(2)} ${(bodyUpperY[0] ?? 0).toFixed(2)}`
-  for (let i = 1; i < last; i++) {
-    const ux = bodyUpperX[i] ?? 0
-    const uy = bodyUpperY[i] ?? 0
-    const uxN = bodyUpperX[i + 1] ?? ux
-    const uyN = bodyUpperY[i + 1] ?? uy
-    bodyD += `Q${ux.toFixed(2)} ${uy.toFixed(2)} ${((ux + uxN) * 0.5).toFixed(2)} ${((uy + uyN) * 0.5).toFixed(2)}`
-  }
-
-  bodyD += `L${(bodyCenterX[last] ?? 0).toFixed(2)} ${(bodyCenterY[last] ?? 0).toFixed(2)}`
-
-  for (let i = last - 1; i >= 1; i--) {
-    const lx = bodyLowerX[i] ?? 0
-    const ly = bodyLowerY[i] ?? 0
-    const lxP = bodyLowerX[i - 1] ?? lx
-    const lyP = bodyLowerY[i - 1] ?? ly
-    bodyD += `Q${lx.toFixed(2)} ${ly.toFixed(2)} ${((lx + lxP) * 0.5).toFixed(2)} ${((ly + lyP) * 0.5).toFixed(2)}`
-  }
-
-  bodyD += `L${(bodyLowerX[0] ?? 0).toFixed(2)} ${(bodyLowerY[0] ?? 0).toFixed(2)}Z`
-
-  const rimCount = Math.max(
-    6,
-    Math.min(BODY_SAMPLES, Math.ceil(BODY_SAMPLES * HERO_HARMONIC_TRACE_CONFIG.rimReachRatio)),
-  )
-  const upperRimD = buildQuadraticCurveFromArrays(bodyUpperX, bodyUpperY, rimCount)
-  const lowerRimD = buildQuadraticCurveFromArrays(bodyLowerX, bodyLowerY, rimCount)
-
-  return { bodyD, upperRimD, lowerRimD }
-}
-
 const carrierStyle = computed(() => ({
   opacity: isReadyToPaint.value ? '1' : '0',
   transform: `translate3d(${carrierTx.value.toFixed(2)}px, ${carrierTy.value.toFixed(2)}px, 0) scale(${carrierScale.value.toFixed(4)})`,
@@ -408,10 +131,6 @@ const gimbalStyle = computed(() => ({
 
 const innerRimBaseColor = computed(() =>
   clickAuraLevel.value > 0.15 ? '#7cc4ff' : '#60baff',
-)
-
-const innerRimCapStopOpacity = computed(
-  () => traceFrame.value?.capYieldStopOpacity ?? '1',
 )
 
 const topFrontTransform = computed(() => {
@@ -523,9 +242,6 @@ let wasFlowFrozen = false
 let clickAuraElapsed = -1
 let smoothedAura = 0
 
-let traceElapsed = -1
-let tracePhaseRad = HERO_HARMONIC_TRACE_CONFIG.initialPhaseRad
-
 let resizeObserver: ResizeObserver | null = null
 let intersectionObserver: IntersectionObserver | null = null
 let selfPulseTimer: ReturnType<typeof setTimeout> | null = null
@@ -585,16 +301,8 @@ function measureBerthToCenterDelta() {
 function triggerClickResonance(clientX = 0, clientY = 0, source: 'self' | 'user' = 'user') {
   if (isLoaderActive.value || (!isInViewport && source !== 'self')) return
 
-  // 1. Trigger 0.92s foreground wave aura + flow pause
+  // Trigger 0.92s foreground Pakka Brandsta-blue wave aura + brief flow pause
   clickAuraElapsed = smoothedAura > 0.25 ? 0.08 : 0.0
-
-  // 2. Trigger 1.72s Top-Overlapping Fluid Wave Extension
-  if (traceElapsed >= 0 && traceElapsed < 0.36) {
-    traceElapsed = 0.05
-  } else {
-    traceElapsed = 0.0
-    tracePhaseRad = HERO_HARMONIC_TRACE_CONFIG.initialPhaseRad
-  }
 
   const el = berthAnchorEl.value
   let originX = clientX
@@ -614,203 +322,6 @@ function triggerClickResonance(clientX = 0, clientY = 0, source: 'self' | 'user'
   })
 
   ensureLoopRunning()
-}
-
-/**
- * Builds a symmetrical tapered aura polygon on both sides that starts full-height
- * at the port and physically thins down to 0 along the wave's narrowing outer edges.
- */
-function buildTaperedAuraPolygon(
-  side: 'left' | 'right',
-  frontU: number,
-  liveSpanSvg: number,
-  timeAmpScale: number,
-): string {
-  if (frontU <= 0.02) return ''
-
-  const dir = side === 'right' ? 1 : -1
-  const originX =
-    side === 'right'
-      ? HERO_HARMONIC_TRACE_CONFIG.rightOriginX
-      : HERO_HARMONIC_TRACE_CONFIG.leftOriginX
-  const baseAuraHalfH = HERO_HARMONIC_TRACE_CONFIG.portAuraStrokeWidth * 0.58
-  const last = BODY_SAMPLES - 1
-
-  for (let i = 0; i < BODY_SAMPLES; i++) {
-    const u = (i / last) * frontU
-    bodyCenterX[i] = originX + dir * u * liveSpanSvg
-    bodyCenterY[i] = evaluateHarmonicTraceY(u, frontU, 1.0, 0.0, 0.0, timeAmpScale)
-  }
-
-  for (let i = 0; i < BODY_SAMPLES; i++) {
-    const normU = i / last
-    const hw = baseAuraHalfH * Math.pow(Math.max(0, 1 - normU), 1.35)
-
-    const prevI = i > 0 ? i - 1 : 0
-    const nextI = i < last ? i + 1 : last
-    const dx = (bodyCenterX[nextI] ?? 0) - (bodyCenterX[prevI] ?? 0)
-    const dy = (bodyCenterY[nextI] ?? 0) - (bodyCenterY[prevI] ?? 0)
-    const len = Math.hypot(dx, dy) || 1
-    let nx = -dy / len
-    let ny = dx / len
-    if (ny > 0) {
-      nx = -nx
-      ny = -ny
-    }
-
-    const cx = bodyCenterX[i] ?? 0
-    const cy = bodyCenterY[i] ?? 0
-    bodyUpperX[i] = cx + nx * hw
-    bodyUpperY[i] = cy + ny * hw
-    bodyLowerX[i] = cx - nx * hw
-    bodyLowerY[i] = cy - ny * hw
-  }
-
-  let d = `M${(bodyUpperX[0] ?? 0).toFixed(2)} ${(bodyUpperY[0] ?? 0).toFixed(2)}`
-  for (let i = 1; i < last; i++) {
-    const ux = bodyUpperX[i] ?? 0
-    const uy = bodyUpperY[i] ?? 0
-    const uxN = bodyUpperX[i + 1] ?? ux
-    const uyN = bodyUpperY[i + 1] ?? uy
-    d += `Q${ux.toFixed(2)} ${uy.toFixed(2)} ${((ux + uxN) * 0.5).toFixed(2)} ${((uy + uyN) * 0.5).toFixed(2)}`
-  }
-
-  d += `L${(bodyCenterX[last] ?? 0).toFixed(2)} ${(bodyCenterY[last] ?? 0).toFixed(2)}`
-
-  for (let i = last - 1; i >= 1; i--) {
-    const lx = bodyLowerX[i] ?? 0
-    const ly = bodyLowerY[i] ?? 0
-    const lxP = bodyLowerX[i - 1] ?? lx
-    const lyP = bodyLowerY[i - 1] ?? ly
-    d += `Q${lx.toFixed(2)} ${ly.toFixed(2)} ${((lx + lxP) * 0.5).toFixed(2)} ${((ly + lyP) * 0.5).toFixed(2)}`
-  }
-
-  d += `L${(bodyLowerX[0] ?? 0).toFixed(2)} ${(bodyLowerY[0] ?? 0).toFixed(2)}Z`
-  return d
-}
-
-function advanceHarmonicTrace(dt: number) {
-  if (traceElapsed < 0) return
-
-  traceElapsed += dt
-  const totalDur = HERO_HARMONIC_TRACE_CONFIG.totalDuration
-
-  if (traceElapsed >= totalDur) {
-    traceElapsed = -1
-    traceFrame.value = null
-    return
-  }
-
-  const lifeU = clamp(traceElapsed / totalDur, 0, 1)
-  const rawUnfurl = clamp(traceElapsed / HERO_HARMONIC_TRACE_CONFIG.unfurlDuration, 0, 1)
-  const frontU = easeTraceUnfurl(rawUnfurl)
-
-  // Continuous outward horizontal crest velocity + gentle vertical settling
-  const speedDecay = 1 - smoothstep(0.15, 0.95, lifeU)
-  const rippleSpeed = lerp(
-    HERO_HARMONIC_TRACE_CONFIG.settledRippleSpeed,
-    HERO_HARMONIC_TRACE_CONFIG.initialRippleSpeed,
-    speedDecay,
-  )
-  tracePhaseRad += dt * rippleSpeed
-
-  const settleCurve = 1 - smoothstep(0.22, 0.98, lifeU)
-  const timeAmpScale = lerp(
-    HERO_HARMONIC_TRACE_CONFIG.settleAmplitudeFloor,
-    1.0,
-    settleCurve,
-  )
-
-  // Smooth attack + long horizontal dissolve into dark space
-  const fadeIn = smoothstep(0.0, 0.042, traceElapsed)
-  const fadeProgress = smoothstep(HERO_HARMONIC_TRACE_CONFIG.fadeStart, totalDur, traceElapsed)
-  const fadeOut = Math.pow(Math.max(0, 1 - fadeProgress), 1.16)
-  const masterAlpha = fadeIn * fadeOut * HERO_HARMONIC_TRACE_CONFIG.masterOpacity
-
-  if (masterAlpha <= 0.004 || frontU <= 0.025) {
-    return
-  }
-
-  // Span continues gliding horizontally outward (+22%) throughout settle & dissolve
-  const liveSpanSvg =
-    HERO_HARMONIC_TRACE_CONFIG.traceSpanSvg *
-    (1 + lifeU * HERO_HARMONIC_TRACE_CONFIG.horizontalGlideBoost)
-
-  const activeTipSpan = liveSpanSvg * Math.max(0.1, frontU)
-  const activeBodySpan = activeTipSpan * HERO_HARMONIC_TRACE_CONFIG.extensionBodyEndU
-
-  const leftEndX = HERO_HARMONIC_TRACE_CONFIG.leftOriginX - activeTipSpan
-  const rightEndX = HERO_HARMONIC_TRACE_CONFIG.rightOriginX + activeTipSpan
-  const leftBodyEndX = HERO_HARMONIC_TRACE_CONFIG.leftOriginX - activeBodySpan
-  const rightBodyEndX = HERO_HARMONIC_TRACE_CONFIG.rightOriginX + activeBodySpan
-
-  // Exact percentage where inner-wave feathered overlap reaches 100% solid right over the port tip
-  const overlapPct = clamp(
-    (HERO_HARMONIC_TRACE_CONFIG.innerOverlapEndU / Math.max(0.12, frontU)) * 100,
-    4.5,
-    24,
-  )
-  const fluidCrestA = clamp(36 + lifeU * 20, 34, 62)
-  const fluidCrestB = clamp(52 + lifeU * 20, 48, 76)
-  const tailFeather = clamp(82 - fadeProgress * 24, 52, 84)
-
-  // Softly yields `#innerWaveGeo`'s closed vertical rim cap while the open extension rims bridge past it
-  const capYield = 1 - clamp(masterAlpha * 1.35, 0, 1)
-
-  const leftAuraD = buildTaperedAuraPolygon('left', frontU, liveSpanSvg, timeAmpScale)
-  const rightAuraD = buildTaperedAuraPolygon('right', frontU, liveSpanSvg, timeAmpScale)
-
-  const leftGeo = buildTaperedWaveBodyAndRims('left', frontU, liveSpanSvg, timeAmpScale)
-  const rightGeo = buildTaperedWaveBodyAndRims('right', frontU, liveSpanSvg, timeAmpScale)
-
-  const leftPaths = LEFT_TRACE_FILAMENTS.map((f) =>
-    buildFilamentTracePath(
-      'left',
-      frontU,
-      liveSpanSvg,
-      f.ampScale,
-      f.phaseOffset,
-      f.slotOffsetSvg,
-      timeAmpScale,
-    ),
-  )
-
-  const rightPaths = RIGHT_TRACE_FILAMENTS.map((f) =>
-    buildFilamentTracePath(
-      'right',
-      frontU,
-      liveSpanSvg,
-      f.ampScale,
-      f.phaseOffset,
-      f.slotOffsetSvg,
-      timeAmpScale,
-    ),
-  )
-
-  traceFrame.value = {
-    masterOpacity: masterAlpha.toFixed(3),
-    portAuraOpacity: (masterAlpha * HERO_HARMONIC_TRACE_CONFIG.portAuraOpacity).toFixed(3),
-    rimOpacity: HERO_HARMONIC_TRACE_CONFIG.rimPeakOpacity.toFixed(3),
-    capYieldStopOpacity: capYield.toFixed(3),
-    leftGradX2: leftEndX.toFixed(1),
-    rightGradX2: rightEndX.toFixed(1),
-    leftBodyGradX2: leftBodyEndX.toFixed(1),
-    rightBodyGradX2: rightBodyEndX.toFixed(1),
-    overlapSolidOffset: `${overlapPct.toFixed(1)}%`,
-    fluidCrestOffsetA: `${fluidCrestA.toFixed(1)}%`,
-    fluidCrestOffsetB: `${fluidCrestB.toFixed(1)}%`,
-    tailFeatherOffset: `${tailFeather.toFixed(1)}%`,
-    leftBodyD: leftGeo.bodyD,
-    rightBodyD: rightGeo.bodyD,
-    leftUpperRimD: leftGeo.upperRimD,
-    leftLowerRimD: leftGeo.lowerRimD,
-    rightUpperRimD: rightGeo.upperRimD,
-    rightLowerRimD: rightGeo.lowerRimD,
-    leftAuraD,
-    rightAuraD,
-    leftPaths,
-    rightPaths,
-  }
 }
 
 function onWindowPointerDown(e: PointerEvent) {
@@ -954,11 +465,11 @@ function tickFrame(ts: number) {
 
       selfPulseTimer = setTimeout(() => {
         triggerClickResonance(0, 0, 'self')
-      }, HERO_HARMONIC_TRACE_CONFIG.selfPulseDelayMs)
+      }, HERO_RESONATOR_ANCHOR_CONFIG.selfPulseDelayMs)
     }
   } else {
     // =========================================================================
-    // STAGE 3: SYMMETRICAL WHITE ANCHOR + SHEEN + TOP-OVERLAPPING FLUID WAVE
+    // STAGE 3: PURE FLUSH MONUMENT ANCHOR + ALLOY SHEEN + LIVING INNER WAVE
     // =========================================================================
     idleElapsed += dt
 
@@ -981,10 +492,7 @@ function tickFrame(ts: number) {
     }
     clickAuraLevel.value = Number(smoothedAura.toFixed(4))
 
-    // 2. Advance 1.72s Top-Overlapping Horizontal Fluid Wave Extension (0 cost when idle)
-    advanceHarmonicTrace(dt)
-
-    // 3. Brief Wave-Flow Pause while Pakka Brandsta-Blue Wave Aura Holds
+    // 2. Brief Wave-Flow Pause while Pakka Brandsta-Blue Wave Aura Holds
     const flowPauseMultiplier = 1 - smoothstep(0.10, 0.42, smoothedAura)
     const activeWaveSpeed =
       (HERO_RESONATOR_ANCHOR_CONFIG.waveBaseFlowSpeed + pointerWaveSurge) * flowPauseMultiplier
@@ -1005,7 +513,7 @@ function tickFrame(ts: number) {
     const harmonicPulse = 0.5 + 0.5 * Math.sin(idleElapsed * 1.35)
     waveAmbientGlow.value = 0.22 + harmonicPulse * 0.07 + pointerWaveSurge * 0.16
 
-    // 4. Left-to-Right Alloy Polish Sweep on a Near 2-Wave Interval (~5.18s period, 1.45s sweep)
+    // 3. Left-to-Right Alloy Polish Sweep on a Near 2-Wave Interval (~5.18s period, 1.45s sweep)
     const polishElapsed = idleElapsed - HERO_RESONATOR_ANCHOR_CONFIG.alloyPolishInitialDelay
     if (polishElapsed < 0) {
       alloyPolishOpacity.value = 0
@@ -1072,7 +580,7 @@ onMounted(() => {
     emit('loaderStateChange', false)
     selfPulseTimer = setTimeout(() => {
       triggerClickResonance(0, 0, 'self')
-    }, HERO_HARMONIC_TRACE_CONFIG.spaReturnPulseDelayMs)
+    }, HERO_RESONATOR_ANCHOR_CONFIG.spaReturnPulseDelayMs)
   }
 
   window.addEventListener('pointerdown', onWindowPointerDown, { passive: true })
@@ -1260,23 +768,6 @@ onBeforeUnmount(() => {
                 <stop offset="100%" stop-color="#0040eb" />
               </linearGradient>
 
-              <!-- Inner-Wave Rim Stroke Gradient: Yields Closed Vertical Cap Seamlessly During Extension -->
-              <linearGradient
-                :id="`innerWaveRimStrokeGrad-${uid}`"
-                gradientUnits="userSpaceOnUse"
-                x1="168.5"
-                y1="320"
-                x2="651.0"
-                y2="320"
-              >
-                <stop offset="0%" :stop-color="innerRimBaseColor" :stop-opacity="innerRimCapStopOpacity" />
-                <stop offset="1.3%" :stop-color="innerRimBaseColor" :stop-opacity="innerRimCapStopOpacity" />
-                <stop offset="3.5%" :stop-color="innerRimBaseColor" stop-opacity="1" />
-                <stop offset="96.5%" :stop-color="innerRimBaseColor" stop-opacity="1" />
-                <stop offset="98.7%" :stop-color="innerRimBaseColor" :stop-opacity="innerRimCapStopOpacity" />
-                <stop offset="100%" :stop-color="innerRimBaseColor" :stop-opacity="innerRimCapStopOpacity" />
-              </linearGradient>
-
               <!-- Extruded 3D Brandsta-Cobalt Wave Underside -->
               <linearGradient
                 :id="`waveSidewall-${uid}`"
@@ -1358,252 +849,7 @@ onBeforeUnmount(() => {
                 <stop offset="72%" stop-color="#0048ff" stop-opacity="0.28" />
                 <stop offset="100%" stop-color="#0048ff" stop-opacity="0" />
               </radialGradient>
-
-              <!-- =======================================================
-                   TOP-OVERLAPPING FLUID WAVE & ASTRAL MOLTEN GOLD GRADIENTS
-                   ======================================================= -->
-              <template v-if="traceFrame">
-                <!-- Left Tapered Aura Cushion (Identical Fade Profile to Right Side) -->
-                <linearGradient
-                  :id="`leftTraceAuraGrad-${uid}`"
-                  gradientUnits="userSpaceOnUse"
-                  :x1="HERO_HARMONIC_TRACE_CONFIG.leftOriginX"
-                  y1="320"
-                  :x2="traceFrame.leftGradX2"
-                  y2="320"
-                >
-                  <stop offset="0%" stop-color="#0048ff" stop-opacity="0" />
-                  <stop :offset="traceFrame.overlapSolidOffset" stop-color="#0048ff" stop-opacity="0.95" />
-                  <stop offset="22%" stop-color="#125dfd" stop-opacity="0.82" />
-                  <stop offset="36%" stop-color="#1870ff" stop-opacity="0.62" />
-                  <stop offset="56%" stop-color="#1870ff" stop-opacity="0.28" />
-                  <stop offset="78%" stop-color="#0048ff" stop-opacity="0.06" />
-                  <stop offset="90%" stop-color="#0048ff" stop-opacity="0" />
-                  <stop offset="100%" stop-color="#0048ff" stop-opacity="0" />
-                </linearGradient>
-
-                <!-- Right Tapered Aura Cushion (Identical Fade Profile + Warm Luminous Gold) -->
-                <linearGradient
-                  :id="`rightTraceAuraGrad-${uid}`"
-                  gradientUnits="userSpaceOnUse"
-                  :x1="HERO_HARMONIC_TRACE_CONFIG.rightOriginX"
-                  y1="320"
-                  :x2="traceFrame.rightGradX2"
-                  y2="320"
-                >
-                  <stop offset="0%" stop-color="#0048ff" stop-opacity="0" />
-                  <stop :offset="traceFrame.overlapSolidOffset" stop-color="#0048ff" stop-opacity="0.95" />
-                  <stop offset="22%" stop-color="#125dfd" stop-opacity="0.82" />
-                  <stop offset="36%" stop-color="#d97706" stop-opacity="0.62" />
-                  <stop offset="56%" stop-color="#f59e0b" stop-opacity="0.28" />
-                  <stop offset="78%" stop-color="#fbbf24" stop-opacity="0.06" />
-                  <stop offset="90%" stop-color="#d97706" stop-opacity="0" />
-                  <stop offset="100%" stop-color="#d97706" stop-opacity="0" />
-                </linearGradient>
-
-                <!-- Left Tapered Fluid Extension Body (Untouched) -->
-                <linearGradient
-                  :id="`traceBodyGradL-${uid}`"
-                  gradientUnits="userSpaceOnUse"
-                  :x1="HERO_HARMONIC_TRACE_CONFIG.leftOriginX"
-                  y1="320"
-                  :x2="traceFrame.leftBodyGradX2"
-                  y2="320"
-                >
-                  <stop offset="0%" stop-color="#0040eb" stop-opacity="0" />
-                  <stop :offset="traceFrame.overlapSolidOffset" stop-color="#0046f5" stop-opacity="1" />
-                  <stop offset="24%" stop-color="#0038cc" stop-opacity="0.96" />
-                  <stop :offset="traceFrame.fluidCrestOffsetA" stop-color="#1870ff" stop-opacity="0.9" />
-                  <stop :offset="traceFrame.fluidCrestOffsetB" stop-color="#0048ff" stop-opacity="0.72" />
-                  <stop offset="86%" stop-color="#002b99" stop-opacity="0.34" />
-                  <stop offset="100%" stop-color="#00268c" stop-opacity="0" />
-                </linearGradient>
-
-                <!-- Right Tapered Fluid Extension Body (Extended Blue Beat -> Lighter Luminous 24K Gold) -->
-                <linearGradient
-                  :id="`traceBodyGradR-${uid}`"
-                  gradientUnits="userSpaceOnUse"
-                  :x1="HERO_HARMONIC_TRACE_CONFIG.rightOriginX"
-                  y1="320"
-                  :x2="traceFrame.rightBodyGradX2"
-                  y2="320"
-                >
-                  <stop offset="0%" stop-color="#0040eb" stop-opacity="0" />
-                  <stop :offset="traceFrame.overlapSolidOffset" stop-color="#0046f5" stop-opacity="1" />
-                  <stop :offset="HERO_HARMONIC_TRACE_CONFIG.goldBlueHoldOffset" stop-color="#1055f8" stop-opacity="0.98" />
-                  <stop :offset="HERO_HARMONIC_TRACE_CONFIG.goldBronzeBridgeOffset" stop-color="#b45309" stop-opacity="0.92" />
-                  <stop :offset="HERO_HARMONIC_TRACE_CONFIG.goldMoltenStartOffset" stop-color="#d97706" stop-opacity="0.95" />
-                  <stop :offset="traceFrame.fluidCrestOffsetA" stop-color="#f59e0b" stop-opacity="0.92" />
-                  <stop :offset="traceFrame.fluidCrestOffsetB" stop-color="#fbbf24" stop-opacity="0.78" />
-                  <stop offset="86%" stop-color="#d97706" stop-opacity="0.28" />
-                  <stop offset="100%" stop-color="#b45309" stop-opacity="0" />
-                </linearGradient>
-
-                <!-- Left Open Fading White-Ice Rim Outline (Untouched) -->
-                <linearGradient
-                  :id="`traceRimGradL-${uid}`"
-                  gradientUnits="userSpaceOnUse"
-                  :x1="HERO_HARMONIC_TRACE_CONFIG.leftOriginX"
-                  y1="320"
-                  :x2="traceFrame.leftBodyGradX2"
-                  y2="320"
-                >
-                  <stop offset="0%" stop-color="#7cc4ff" stop-opacity="0" />
-                  <stop :offset="traceFrame.overlapSolidOffset" stop-color="#d8f1ff" stop-opacity="0.95" />
-                  <stop offset="22%" stop-color="#93d5ff" stop-opacity="0.64" />
-                  <stop offset="44%" stop-color="#60baff" stop-opacity="0.28" />
-                  <stop offset="70%" stop-color="#2979ff" stop-opacity="0" />
-                  <stop offset="100%" stop-color="#2979ff" stop-opacity="0" />
-                </linearGradient>
-
-                <!-- Right Open Fading White-Ice -> Sunlit Champagne-Gold Rim Outline -->
-                <linearGradient
-                  :id="`traceRimGradR-${uid}`"
-                  gradientUnits="userSpaceOnUse"
-                  :x1="HERO_HARMONIC_TRACE_CONFIG.rightOriginX"
-                  y1="320"
-                  :x2="traceFrame.rightBodyGradX2"
-                  y2="320"
-                >
-                  <stop offset="0%" stop-color="#7cc4ff" stop-opacity="0" />
-                  <stop :offset="traceFrame.overlapSolidOffset" stop-color="#d8f1ff" stop-opacity="0.95" />
-                  <stop offset="23%" stop-color="#bae6fd" stop-opacity="0.72" />
-                  <stop offset="38%" stop-color="#fde68a" stop-opacity="0.58" />
-                  <stop offset="56%" stop-color="#fcd34d" stop-opacity="0.24" />
-                  <stop offset="74%" stop-color="#f59e0b" stop-opacity="0" />
-                  <stop offset="100%" stop-color="#f59e0b" stop-opacity="0" />
-                </linearGradient>
-
-                <!-- Left Flowing Sapphire & Glacier Fluid Current Gradients (Untouched) -->
-                <linearGradient
-                  :id="`leftTraceSapphireDeepGrad-${uid}`"
-                  gradientUnits="userSpaceOnUse"
-                  :x1="HERO_HARMONIC_TRACE_CONFIG.leftOriginX"
-                  y1="320"
-                  :x2="traceFrame.leftGradX2"
-                  y2="320"
-                >
-                  <stop offset="0%" stop-color="#003ee0" stop-opacity="0" />
-                  <stop :offset="traceFrame.overlapSolidOffset" stop-color="#0040eb" stop-opacity="0.95" />
-                  <stop offset="28%" stop-color="#002b99" stop-opacity="0.9" />
-                  <stop offset="58%" stop-color="#0048ff" stop-opacity="0.72" />
-                  <stop :offset="traceFrame.tailFeatherOffset" stop-color="#0035b5" stop-opacity="0.24" />
-                  <stop offset="100%" stop-color="#00268c" stop-opacity="0" />
-                </linearGradient>
-
-                <linearGradient
-                  :id="`leftTraceCobaltFluidGrad-${uid}`"
-                  gradientUnits="userSpaceOnUse"
-                  :x1="HERO_HARMONIC_TRACE_CONFIG.leftOriginX"
-                  y1="320"
-                  :x2="traceFrame.leftGradX2"
-                  y2="320"
-                >
-                  <stop offset="0%" stop-color="#0048ff" stop-opacity="0" />
-                  <stop :offset="traceFrame.overlapSolidOffset" stop-color="#0048ff" stop-opacity="1" />
-                  <stop offset="24%" stop-color="#1870ff" stop-opacity="0.96" />
-                  <stop :offset="traceFrame.fluidCrestOffsetA" stop-color="#60baff" stop-opacity="0.92" />
-                  <stop :offset="traceFrame.fluidCrestOffsetB" stop-color="#1870ff" stop-opacity="0.78" />
-                  <stop :offset="traceFrame.tailFeatherOffset" stop-color="#0048ff" stop-opacity="0.26" />
-                  <stop offset="100%" stop-color="#00268c" stop-opacity="0" />
-                </linearGradient>
-
-                <linearGradient
-                  :id="`leftTraceGlacierSpecGrad-${uid}`"
-                  gradientUnits="userSpaceOnUse"
-                  :x1="HERO_HARMONIC_TRACE_CONFIG.leftOriginX"
-                  y1="320"
-                  :x2="traceFrame.leftGradX2"
-                  y2="320"
-                >
-                  <stop offset="0%" stop-color="#60baff" stop-opacity="0" />
-                  <stop :offset="traceFrame.overlapSolidOffset" stop-color="#2979ff" stop-opacity="0.88" />
-                  <stop offset="22%" stop-color="#7cc4ff" stop-opacity="0.94" />
-                  <stop :offset="traceFrame.fluidCrestOffsetA" stop-color="#e0f2fe" stop-opacity="0.94" />
-                  <stop :offset="traceFrame.fluidCrestOffsetB" stop-color="#60baff" stop-opacity="0.72" />
-                  <stop :offset="traceFrame.tailFeatherOffset" stop-color="#2979ff" stop-opacity="0.2" />
-                  <stop offset="100%" stop-color="#0048ff" stop-opacity="0" />
-                </linearGradient>
-
-                <!-- Right Flowing Luminous 24K Gold Fluid Current Gradients (Lighter Warm Gold Shade) -->
-                <linearGradient
-                  :id="`rightTraceBronzeDeepGrad-${uid}`"
-                  gradientUnits="userSpaceOnUse"
-                  :x1="HERO_HARMONIC_TRACE_CONFIG.rightOriginX"
-                  y1="320"
-                  :x2="traceFrame.rightGradX2"
-                  y2="320"
-                >
-                  <stop offset="0%" stop-color="#003ee0" stop-opacity="0" />
-                  <stop :offset="traceFrame.overlapSolidOffset" stop-color="#0046f5" stop-opacity="0.96" />
-                  <stop :offset="HERO_HARMONIC_TRACE_CONFIG.goldBlueHoldOffset" stop-color="#1258fa" stop-opacity="0.95" />
-                  <stop :offset="HERO_HARMONIC_TRACE_CONFIG.goldBronzeBridgeOffset" stop-color="#b45309" stop-opacity="0.92" />
-                  <stop offset="40%" stop-color="#d97706" stop-opacity="0.92" />
-                  <stop offset="62%" stop-color="#f59e0b" stop-opacity="0.8" />
-                  <stop :offset="traceFrame.tailFeatherOffset" stop-color="#d97706" stop-opacity="0.24" />
-                  <stop offset="100%" stop-color="#b45309" stop-opacity="0" />
-                </linearGradient>
-
-                <linearGradient
-                  :id="`rightTraceGoldMoltenGrad-${uid}`"
-                  gradientUnits="userSpaceOnUse"
-                  :x1="HERO_HARMONIC_TRACE_CONFIG.rightOriginX"
-                  y1="320"
-                  :x2="traceFrame.rightGradX2"
-                  y2="320"
-                >
-                  <stop offset="0%" stop-color="#0048ff" stop-opacity="0" />
-                  <stop :offset="traceFrame.overlapSolidOffset" stop-color="#0048ff" stop-opacity="1" />
-                  <stop :offset="HERO_HARMONIC_TRACE_CONFIG.goldBlueHoldOffset" stop-color="#1868ff" stop-opacity="0.98" />
-                  <stop :offset="HERO_HARMONIC_TRACE_CONFIG.goldBronzeBridgeOffset" stop-color="#c2610c" stop-opacity="0.95" />
-                  <stop :offset="HERO_HARMONIC_TRACE_CONFIG.goldMoltenStartOffset" stop-color="#f59e0b" stop-opacity="0.98" />
-                  <stop :offset="traceFrame.fluidCrestOffsetA" stop-color="#fbbf24" stop-opacity="0.98" />
-                  <stop :offset="traceFrame.fluidCrestOffsetB" stop-color="#fcd34d" stop-opacity="0.92" />
-                  <stop :offset="traceFrame.tailFeatherOffset" stop-color="#f59e0b" stop-opacity="0.28" />
-                  <stop offset="100%" stop-color="#d97706" stop-opacity="0" />
-                </linearGradient>
-
-                <linearGradient
-                  :id="`rightTraceGoldSpecularGrad-${uid}`"
-                  gradientUnits="userSpaceOnUse"
-                  :x1="HERO_HARMONIC_TRACE_CONFIG.rightOriginX"
-                  y1="320"
-                  :x2="traceFrame.rightGradX2"
-                  y2="320"
-                >
-                  <stop offset="0%" stop-color="#60baff" stop-opacity="0" />
-                  <stop :offset="traceFrame.overlapSolidOffset" stop-color="#2979ff" stop-opacity="0.88" />
-                  <stop :offset="HERO_HARMONIC_TRACE_CONFIG.goldBlueHoldOffset" stop-color="#60baff" stop-opacity="0.86" />
-                  <stop :offset="HERO_HARMONIC_TRACE_CONFIG.goldBronzeBridgeOffset" stop-color="#d97706" stop-opacity="0.88" />
-                  <stop :offset="HERO_HARMONIC_TRACE_CONFIG.goldMoltenStartOffset" stop-color="#fcd34d" stop-opacity="0.96" />
-                  <stop :offset="traceFrame.fluidCrestOffsetA" stop-color="#fef3c7" stop-opacity="0.98" />
-                  <stop :offset="traceFrame.fluidCrestOffsetB" stop-color="#fde68a" stop-opacity="0.86" />
-                  <stop :offset="traceFrame.tailFeatherOffset" stop-color="#fbbf24" stop-opacity="0.22" />
-                  <stop offset="100%" stop-color="#f59e0b" stop-opacity="0" />
-                </linearGradient>
-              </template>
             </defs>
-
-            <!-- =====================================================
-                 GROUP 0: SYMMETRICAL EDGE-THINNING AURA CUSHION (BEHIND SHELLS)
-                 Tapers thin along both wave contours with identical fade profiles
-                 ===================================================== -->
-            <g
-              v-if="traceFrame"
-              :opacity="traceFrame.portAuraOpacity"
-              class="trace-port-aura-blur pointer-events-none"
-            >
-              <path
-                v-if="traceFrame.leftAuraD"
-                :d="traceFrame.leftAuraD"
-                :fill="`url(#leftTraceAuraGrad-${uid})`"
-              />
-              <path
-                v-if="traceFrame.rightAuraD"
-                :d="traceFrame.rightAuraD"
-                :fill="`url(#rightTraceAuraGrad-${uid})`"
-              />
-            </g>
 
             <!-- =====================================================
                  GROUP 1: SYMMETRICAL INWARD-TUCKED 3D SIDEWALLS
@@ -1762,91 +1008,14 @@ onBeforeUnmount(() => {
                 :opacity="(clickAuraLevel * 0.88).toFixed(3)"
               />
 
-              <!-- Crisp Dimensional Edge Filament (Yields Closed Cap Seamlessly to Group 4 Open Rims) -->
+              <!-- Crisp Dimensional Flush Edge Bevel -->
               <use
                 :href="`#innerWaveGeo-${uid}`"
                 fill="none"
-                :stroke="`url(#innerWaveRimStrokeGrad-${uid})`"
+                :stroke="innerRimBaseColor"
                 :stroke-width="(1.0 + clickAuraLevel * 0.45).toFixed(2)"
                 :opacity="(0.18 + morph3D * 0.24 + clickAuraLevel * 0.42).toFixed(3)"
               />
-            </g>
-
-            <!-- =====================================================
-                 GROUP 4: TOP-OVERLAPPING FLUID WAVE EXTENSION + FADING RIMS
-                 Feathers cleanly over `#innerWaveGeo` straight ends with
-                 rich Sapphire Fluid (left) & Astral 24K Molten Gold (right)
-                 ===================================================== -->
-            <g
-              v-if="traceFrame"
-              :opacity="traceFrame.masterOpacity"
-              class="pointer-events-none"
-            >
-              <!-- Fuller-Entrance Tapered Fluid Wave Bodies -->
-              <path
-                v-if="traceFrame.leftBodyD"
-                :d="traceFrame.leftBodyD"
-                :fill="`url(#traceBodyGradL-${uid})`"
-              />
-              <path
-                v-if="traceFrame.rightBodyD"
-                :d="traceFrame.rightBodyD"
-                :fill="`url(#traceBodyGradR-${uid})`"
-              />
-
-              <!-- Left Flowing Sapphire & Glacier Fluid Currents -->
-              <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path
-                  v-for="(spec, idx) in LEFT_TRACE_FILAMENTS"
-                  :key="spec.id"
-                  :d="traceFrame.leftPaths[idx] || ''"
-                  :stroke="leftTraceGradUrl(spec.gradKey)"
-                  :stroke-width="(spec.strokeWidth * HERO_HARMONIC_TRACE_CONFIG.strokeScale).toFixed(2)"
-                  :opacity="spec.opacity"
-                />
-              </g>
-
-              <!-- Right Flowing Burnished Bronze & 24K Molten Gold Fluid Currents -->
-              <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path
-                  v-for="(spec, idx) in RIGHT_TRACE_FILAMENTS"
-                  :key="spec.id"
-                  :d="traceFrame.rightPaths[idx] || ''"
-                  :stroke="rightTraceGradUrl(spec.gradKey)"
-                  :stroke-width="(spec.strokeWidth * HERO_HARMONIC_TRACE_CONFIG.strokeScale).toFixed(2)"
-                  :opacity="spec.opacity"
-                />
-              </g>
-
-              <!-- Open Top & Bottom Fading White-Ice / Champagne Rim Outlines -->
-              <g
-                fill="none"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                :stroke-width="HERO_HARMONIC_TRACE_CONFIG.rimStrokeWidth"
-                :opacity="traceFrame.rimOpacity"
-              >
-                <path
-                  v-if="traceFrame.leftUpperRimD"
-                  :d="traceFrame.leftUpperRimD"
-                  :stroke="`url(#traceRimGradL-${uid})`"
-                />
-                <path
-                  v-if="traceFrame.leftLowerRimD"
-                  :d="traceFrame.leftLowerRimD"
-                  :stroke="`url(#traceRimGradL-${uid})`"
-                />
-                <path
-                  v-if="traceFrame.rightUpperRimD"
-                  :d="traceFrame.rightUpperRimD"
-                  :stroke="`url(#traceRimGradR-${uid})`"
-                />
-                <path
-                  v-if="traceFrame.rightLowerRimD"
-                  :d="traceFrame.rightLowerRimD"
-                  :stroke="`url(#traceRimGradR-${uid})`"
-                />
-              </g>
             </g>
 
             <!-- Beat 1 Leading-Edge Ignition Point -->
@@ -1890,10 +1059,6 @@ onBeforeUnmount(() => {
   backface-visibility: hidden;
   will-change: transform;
   filter: drop-shadow(0 20px 38px rgba(0, 8, 28, 0.72));
-}
-
-.trace-port-aura-blur {
-  filter: blur(4px);
 }
 
 .wave-aura-blur {

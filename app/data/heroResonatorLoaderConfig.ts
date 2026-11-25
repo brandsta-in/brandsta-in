@@ -2,7 +2,7 @@
 
 /**
  * Exact SVG vector paths from BrandstaSvg (mark variant coordinate space: 160 -2 498 512)
- * Rendered inside padded viewBox "120 -36 578 584" with overflow-visible for outward harmonic traces.
+ * Rendered inside padded viewBox "120 -36 578 584" for 3D extrusion & wave-aura breathing room.
  */
 export const RESONATOR_PATHS = {
   viewBox: '120 -36 578 584',
@@ -20,29 +20,6 @@ export interface ClickResonancePayload {
   originY: number
   auraDuration: number
   source?: 'self' | 'user'
-}
-
-export type LeftTraceGradientKey = 'sapphireDeep' | 'cobaltFluid' | 'glacierSpec'
-export type RightTraceGradientKey = 'bronzeDeep' | 'goldMolten' | 'goldSpecular'
-
-export interface LeftTraceFilamentSpec {
-  readonly id: string
-  readonly gradKey: LeftTraceGradientKey
-  readonly strokeWidth: number
-  readonly opacity: number
-  readonly ampScale: number
-  readonly phaseOffset: number
-  readonly slotOffsetSvg: number
-}
-
-export interface RightTraceFilamentSpec {
-  readonly id: string
-  readonly gradKey: RightTraceGradientKey
-  readonly strokeWidth: number
-  readonly opacity: number
-  readonly ampScale: number
-  readonly phaseOffset: number
-  readonly slotOffsetSvg: number
 }
 
 /**
@@ -113,157 +90,9 @@ export const HERO_RESONATOR_ANCHOR_CONFIG = {
   alloyPolishSweepDuration: 1.45,
   alloyPolishPeakOpacity: 0.92,
 
-  // 0.92s Click-Triggered Pakka Brandsta-Blue Wave Aura & Brief Flow Pause
+  // 0.92s Click-Triggered Pakka Brandsta-Blue Wave Aura, Arrival Pulse Delays & Flow Pause
   clickAuraDuration: 0.92,
-  clickAuraSmoothingRate: 0.92,
-} as const
-
-/**
- * Top-Overlapping Horizontal Fluid Wave Extension Config
- * - Starts ~16 SVG units inside `#innerWaveGeo`'s straight ends (x=185 / x=634.5) with a feathered 0->1 ramp.
- * - Matches full stroked inner-wave height (11.7 SVG units) across the port entrance before tapering.
- * - Traces open top & bottom white-ice rim outlines that slowly fade out along both extensions.
- * - Drives rich multi-stop Brandsta Sapphire fluid (left) and 24K Astral Molten Gold fluid (right).
- */
-export const HERO_HARMONIC_TRACE_CONFIG = {
-  // Automatic initial arrival pulse delays (ms)
+  clickAuraSmoothingRate: 2.78,
   selfPulseDelayMs: 65,
   spaReturnPulseDelayMs: 85,
-
-  // Lifecycle timing (seconds): smooth horizontal shoot-out -> outward fluid travel -> slow dissolve
-  totalDuration: 1.1,
-  unfurlDuration: 0.42,
-  fadeStart: 0.74,
-
-  // Feathered top-layer overlap origins (~16 SVG units inside `#innerWaveGeo` outer tips x=168.9 & x=650.5)
-  leftOriginX: 185.0,
-  rightOriginX: 634.5,
-  innerOriginY: 319.62,
-  outerOriginY: 320.22,
-  innerOverlapEndU: 0.072,
-
-  // Horizontal propagation span & continuous outward drift boost (+22% glide while fading)
-  traceSpanSvg: 218.0,
-  horizontalGlideBoost: 0.22,
-  sampleCount: 54,
-  bodySampleCount: 42,
-
-  // Shallow, poised horizontal wave physics (zero vertical oscillation inside the overlap zone)
-  oscillationCycles: 1.58,
-  peakAmplitudeSvg: 17.5,
-  spatialDampingExp: 1.16,
-  collarStartU: 0.072,
-  collarEndU: 0.23,
-
-  // Continuous outward horizontal phase velocity & gentle amplitude settle
-  settleAmplitudeFloor: 0.38,
-  initialRippleSpeed: 6.8,
-  settledRippleSpeed: 3.15,
-  initialPhaseRad: 0.08,
-
-  // Fuller entrance body (11.7 SVG units tall = 5.85 half-height) with port-mouth plateau -> smooth taper
-  extensionBodyEndU: 0.90,
-  portBodyHalfHeightSvg: 5.85,
-  portPlateauEndU: 0.105,
-  bodyTaperExp: 1.06,
-
-  // Open top & bottom rim outlines continuing `#innerWaveGeo`'s white-ice edge and fading slowly outward
-  rimReachRatio: 0.72,
-  rimStrokeWidth: 1.42,
-  rimPeakOpacity: 0.90,
-
-  // Master thickness & background port-aura dials
-  strokeScale: 1.16,
-  masterOpacity: 0.98,
-  portAuraOpacity: 0.46,
-  portAuraStrokeWidth: 12.0,
-
-  // Right-wing Astral Molten Gold fluid transition stops (extends Brandsta blue further before warming to gold)
-  goldBlueHoldOffset: '19%',
-  goldBronzeBridgeOffset: '27%',
-  goldMoltenStartOffset: '36%',
 } as const
-
-/**
- * Left Extension: Multi-Stop Brandsta Sapphire, Royal Cobalt & Glacier Fluid Currents
- */
-export const LEFT_TRACE_FILAMENTS: readonly LeftTraceFilamentSpec[] = [
-  {
-    id: 'l-fluid-undertow',
-    gradKey: 'sapphireDeep',
-    strokeWidth: 2.2,
-    opacity: 0.82,
-    ampScale: 0.92,
-    phaseOffset: 0.08,
-    slotOffsetSvg: 1.25,
-  },
-  {
-    id: 'l-fluid-secondary',
-    gradKey: 'cobaltFluid',
-    strokeWidth: 1.75,
-    opacity: 0.84,
-    ampScale: 1.06,
-    phaseOffset: -0.1,
-    slotOffsetSvg: -0.95,
-  },
-  {
-    id: 'l-fluid-core',
-    gradKey: 'cobaltFluid',
-    strokeWidth: 2.05,
-    opacity: 0.96,
-    ampScale: 1.0,
-    phaseOffset: 0.0,
-    slotOffsetSvg: 0.0,
-  },
-  {
-    id: 'l-fluid-specular',
-    gradKey: 'glacierSpec',
-    strokeWidth: 1.05,
-    opacity: 0.92,
-    ampScale: 1.02,
-    phaseOffset: -0.03,
-    slotOffsetSvg: -0.4,
-  },
-] as const
-
-/**
- * Right Extension: Multi-Stop Burnished Cognac-Bronze, 24K Molten Gold & Sunlit Champagne Fluid Currents
- */
-export const RIGHT_TRACE_FILAMENTS: readonly RightTraceFilamentSpec[] = [
-  {
-    id: 'r-gold-bronze-undertow',
-    gradKey: 'bronzeDeep',
-    strokeWidth: 2.3,
-    opacity: 0.88,
-    ampScale: 0.91,
-    phaseOffset: 0.09,
-    slotOffsetSvg: 1.3,
-  },
-  {
-    id: 'r-gold-secondary-wave',
-    gradKey: 'goldMolten',
-    strokeWidth: 1.65,
-    opacity: 0.88,
-    ampScale: 1.07,
-    phaseOffset: -0.11,
-    slotOffsetSvg: -0.9,
-  },
-  {
-    id: 'r-gold-molten-core',
-    gradKey: 'goldMolten',
-    strokeWidth: 2.0,
-    opacity: 0.98,
-    ampScale: 1.0,
-    phaseOffset: 0.0,
-    slotOffsetSvg: 0.05,
-  },
-  {
-    id: 'r-gold-champagne-crest',
-    gradKey: 'goldSpecular',
-    strokeWidth: 1,
-    opacity: 0.94,
-    ampScale: 1.02,
-    phaseOffset: -0.04,
-    slotOffsetSvg: -0.42,
-  },
-] as const

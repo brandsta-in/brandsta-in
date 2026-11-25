@@ -6,7 +6,9 @@ import ResonantCursor from '~/components/ResonantCursor.vue'
 <template>
   <div class="min-h-dvh bg-brand-obsidian text-white antialiased">
     <NuxtRouteAnnouncer />
-    <NuxtPage />
+    <NuxtLayout>
+      <NuxtPage />
+    </NuxtLayout>
     <ResonantCursor />
   </div>
 </template>

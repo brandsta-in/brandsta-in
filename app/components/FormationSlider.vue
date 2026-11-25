@@ -791,10 +791,4 @@ onUnmounted(() => {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .arrival-char-pulse {
-    animation: none !important;
-  }
-}
-
 </style>

@@ -1,9 +1,10 @@
-<!-- app/pages/index.vue -->
+<!-- app/pages/formation.vue -->
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useBrandstaSeo } from '~/composables/useBrandstaSeo'
 import { useConvergentScroll, type ConvergentTelemetry } from '~/composables/useConvergentScroll'
 import { HERO_CHOREOGRAPHY } from '~/data/heroChoreography'
+import ResonantFlowButton, { type ResonantButtonSize } from '~/components/ResonantFlowButton.vue'
 import ConvergentSignalEngine from '~/components/ConvergentSignalEngine.vue'
 import FormationSlider from '~/components/FormationSlider.vue'
 
@@ -40,12 +41,16 @@ const FORMING_FLASH_DELAY_MS =
   (FORMING_CHARS.length - 1) * HERO_CHOREOGRAPHY.formingCharStaggerMs -
   Math.round(40 * HERO_CHOREOGRAPHY.tempoScale)
 
+const BACK_HOME_DELAY_MS =
+  HERO_CHOREOGRAPHY.interactionCueStartMs + 160
+
 const heroStackEl = ref<HTMLDivElement | null>(null)
 const scrollCueEl = ref<HTMLButtonElement | null>(null)
 const isFormingActive = ref(false)
 const isCueHovered = ref(false)
 const isSurfacePulsing = ref(false)
 const inputModality = ref<InputModality>('desktop')
+const backHomeButtonSize = ref<ResonantButtonSize>('md')
 
 const clickRipple = ref<{ active: boolean; x: number; y: number; id: number }>({
   active: false,
@@ -100,8 +105,13 @@ function cueTokenDelayMs(idx: number, total: number): number {
 
 let cleanupScroll: (() => void) | null = null
 let unsubscribeHeroTick: (() => void) | null = null
+let desktopBackHomeMedia: MediaQueryList | null = null
 let pulseEchoTimer: ReturnType<typeof setTimeout> | null = null
 let rippleHideTimer: ReturnType<typeof setTimeout> | null = null
+
+function syncBackHomeButtonSize() {
+  backHomeButtonSize.value = desktopBackHomeMedia?.matches ? 'lg' : 'md'
+}
 
 function detectInputModality(): InputModality {
   if (typeof window === 'undefined') return 'desktop'
@@ -219,12 +229,20 @@ function updateHeroScrollParallax(tel: ConvergentTelemetry) {
 
 onMounted(() => {
   inputModality.value = detectInputModality()
+  desktopBackHomeMedia = window.matchMedia('(min-width: 1024px)')
+  syncBackHomeButtonSize()
+  desktopBackHomeMedia.addEventListener('change', syncBackHomeButtonSize)
+
   cleanupScroll = mountScrollEngine()
   unsubscribeHeroTick = onScrollTick(updateHeroScrollParallax)
 })
 
 onUnmounted(() => {
   setFormingHovered(false)
+  if (desktopBackHomeMedia) {
+    desktopBackHomeMedia.removeEventListener('change', syncBackHomeButtonSize)
+    desktopBackHomeMedia = null
+  }
   if (pulseEchoTimer) {
     clearTimeout(pulseEchoTimer)
     pulseEchoTimer = null
@@ -278,7 +296,7 @@ onUnmounted(() => {
           ref="heroStackEl"
           class="relative mx-auto flex w-full max-w-[46rem] flex-col items-center justify-center text-center will-change-transform"
         >
-          <!-- Beat 3: ORIGIN Writes Letter-by-Letter (sr-only replaces prohibited span aria-label) -->
+          <!-- Beat 3: ORIGIN Writes Letter-by-Letter -->
           <span
             class="relative mb-6 sm:mb-8 lg:mb-10 inline-flex items-center text-[0.7rem] sm:text-[0.78rem] font-medium uppercase text-white/84 select-none [@media(max-height:520px)]:mb-2.5 [@media(max-height:520px)]:text-[0.62rem]"
           >
@@ -296,7 +314,7 @@ onUnmounted(() => {
             >{{ ch }}</span>
           </span>
 
-          <!-- Beat 4: Something -> is -> forming. (Clean Accessible Heading + Unhidden Focusable Button) -->
+          <!-- Beat 4: Something -> is -> forming. -->
           <h1
             id="formation-heading"
             class="relative text-[2.6rem] 2xs:text-[3.1rem] sm:text-[4.4rem] lg:text-[5.2rem] xl:text-[5.85rem] 2xl:text-[6.35rem] font-bold leading-[1.04] tracking-[-0.035em] text-white select-none [@media(max-height:520px)]:text-[2.3rem]"
@@ -317,7 +335,7 @@ onUnmounted(() => {
               >{{ ch }}</span>
             </span>
 
-            <!-- "is forming." (No aria-hidden here so focusable role="button" stays exposed) -->
+            <!-- "is forming." -->
             <span class="mt-0.5 sm:mt-1.5 block">
               <span aria-hidden="true" class="inline-flex mr-[0.22em]">
                 <span
@@ -345,14 +363,12 @@ onUnmounted(() => {
                 @keydown.enter.prevent="onFormingClick()"
                 @keydown.space.prevent="onFormingClick()"
               >
-                <!-- One-Shot Brief Glow Flash on Write Completion (Settles to 0) -->
                 <span
                   aria-hidden="true"
                   class="forming-write-flash pointer-events-none absolute -inset-x-3 -inset-y-1 -z-10 rounded-full"
                   :style="{ '--flash-delay': `${FORMING_FLASH_DELAY_MS}ms` }"
                 />
 
-                <!-- Subtle Tight Halo (0 Opacity in Idle — Fades In Gently on Hover / Surface Pulse) -->
                 <span
                   aria-hidden="true"
                   class="forming-hover-halo pointer-events-none absolute -inset-x-2.5 -inset-y-1 -z-10 rounded-full"
@@ -372,8 +388,8 @@ onUnmounted(() => {
             </span>
           </h1>
 
-          <!-- Beat 5: Subtitle Writes Word-by-Word (sr-only replaces prohibited p aria-label) -->
-          <!-- <p
+          <!-- Beat 5: Subtitle Writes Word-by-Word -->
+          <p
             class="relative mt-5 sm:mt-7 lg:mt-8 max-w-[26rem] text-[0.96rem] 2xs:text-[1.05rem] sm:text-[1.22rem] xl:text-[1.34rem] font-normal leading-[1.58] tracking-[-0.01em] text-white/84 select-none [@media(max-height:520px)]:mt-2.5 [@media(max-height:520px)]:text-[0.88rem]"
           >
             <span class="sr-only">Every beginning carries a signal. Follow its journey.</span>
@@ -403,10 +419,10 @@ onUnmounted(() => {
                 }"
               >{{ word }}</span>
             </span>
-          </p> -->
+          </p>
 
-          <!-- Beat 5B: Signal Horizon Ignition Interactive Cue (Natural Token Semantics, Zero Prohibited ARIA) -->
-          <!-- <div
+          <!-- Beat 5B: Signal Horizon Ignition Interactive Cue -->
+          <div
             data-resonant-hover
             class="signal-horizon-cue relative mt-6 sm:mt-8 lg:mt-9 inline-flex max-w-full items-center justify-center gap-2.5 sm:gap-4 px-2 py-1.5 select-none [@media(max-height:520px)]:mt-2.5 [@media(max-height:520px)]:py-0.5"
             :class="{
@@ -416,14 +432,12 @@ onUnmounted(() => {
             @mouseenter="onCueEnter"
             @mouseleave="onCueLeave"
           >
-            One-Shot Center-Outward Ignition Aura Flash
             <span
               aria-hidden="true"
               class="cue-ignition-flash pointer-events-none absolute -inset-x-6 -inset-y-2 -z-10 rounded-full"
               :style="{ '--cue-start': `${HERO_CHOREOGRAPHY.interactionCueStartMs}ms` }"
             />
 
-            Center-Outward Igniting Tokens (Interactive Verbs + Architectural Copy)
             <span
               class="inline-flex flex-wrap items-center justify-center gap-x-[0.52em] gap-y-1 text-[0.58rem] 2xs:text-[0.63rem] sm:text-[0.7rem] font-medium uppercase leading-[1.55] tracking-[0.25em] [@media(max-height:520px)]:text-[0.54rem]"
             >
@@ -460,11 +474,31 @@ onUnmounted(() => {
                 >{{ token.text }}</span>
               </template>
             </span>
-          </div> -->
+          </div>
+
+          <!-- Full-Blue Resonant Back to Home Button Directly Under Cue Line ('md' Mobile, 'lg' Desktop+) -->
+          <div
+            class="char-write mt-5 sm:mt-6 lg:mt-7 flex max-w-full items-center justify-center [@media(max-height:520px)]:mt-2.5"
+            :style="{
+              '--delay': `${BACK_HOME_DELAY_MS}ms`,
+              '--dur': '480ms',
+              '--rise': '12px',
+            }"
+          >
+            <ResonantFlowButton
+              label="BACK TO HOME"
+              href="/"
+              variant="primary"
+              fluid="blue"
+              arrow="right"
+              :size="backHomeButtonSize"
+              class="cursor-clickable cursor-blue lg:cursor-none"
+            />
+          </div>
         </div>
 
         <!-- Row 3: Beat 6 Parabolic Triple-Crescent SCROLL Indicator -->
-        <!-- <div class="flex w-full items-end justify-center self-end">
+        <div class="flex w-full items-end justify-center self-end">
           <button
             ref="scrollCueEl"
             type="button"
@@ -549,7 +583,7 @@ onUnmounted(() => {
               </span>
             </span>
           </button>
-        </div> -->
+        </div>
       </section>
 
       <!-- SECTION 2: FIXED VIEWPORT FORMATION STAGE + SCROLL RUNWAY -->

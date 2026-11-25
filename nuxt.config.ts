@@ -1,6 +1,17 @@
 // nuxt.config.ts
 import tailwindcss from '@tailwindcss/vite'
 
+const SITE_URL = 'https://brandsta.in'
+const SEO_TITLE = 'Brandsta | Digital Branding & Interactive Web Experiences'
+const SEO_DESCRIPTION =
+  'Brandsta is a creative studio that builds distinctive digital identities, interactive websites and custom tools, and helps brands get seen and grow.'
+const OG_TITLE = 'Brandsta | Signature Branding. Amplified.'
+const OG_DESCRIPTION =
+  'We amplify digital identities through strategy, creativity and technology. Bring us the dream. Let’s build what’s next, together.'
+const OG_IMAGE_URL = 'https://brandsta.in/images/og/emerge.jpg'
+const OG_IMAGE_ALT =
+  'Brandsta’s silver resonator with a blue waveform above the words “We Make Waves” and “Signature Branding. Amplified.”'
+
 export default defineNuxtConfig({
   future: {
     compatibilityVersion: 4,
@@ -10,10 +21,12 @@ export default defineNuxtConfig({
 
   pages: true,
 
-  // 1. Site Authority (Brandsta HQ — Formation Mode)
+  // 1. Site Authority (Brandsta HQ — Live Production Mode)
   site: {
-    url: 'https://brandsta.in',
+    url: SITE_URL,
     name: 'Brandsta',
+    description: SEO_DESCRIPTION,
+    defaultLocale: 'en',
     indexable: true,
     env: 'production',
   },
@@ -38,7 +51,7 @@ export default defineNuxtConfig({
     '@vercel/analytics/nuxt',
   ],
 
-  // 4. Self-Hosted WOFF2 Typography (Inter Upright/Italic + Playfair Display Italic Ready)
+  // 4. Self-Hosted WOFF2 Typography (Inter Upright/Italic + Playfair Display Italic)
   fonts: {
     defaults: {
       subsets: ['latin'],
@@ -90,7 +103,7 @@ export default defineNuxtConfig({
     blockAiBots: false,
     allow: ['/'],
     disallow: [],
-    sitemap: ['https://brandsta.in/sitemap.xml'],
+    sitemap: [`${SITE_URL}/sitemap.xml`],
   },
 
   // 7. Prerender & UTF-8 Agentic Header Rules
@@ -138,11 +151,11 @@ export default defineNuxtConfig({
   runtimeConfig: {
     resendApiKey: '',
     public: {
-      siteUrl: 'https://brandsta.in',
+      siteUrl: SITE_URL,
     },
   },
 
-  // 13. Global Head (Formation Favicons & #02050e Preserved Untouched)
+  // 13. Global Production Head
   app: {
     baseURL: '/',
     pageTransition: {
@@ -152,7 +165,7 @@ export default defineNuxtConfig({
     head: {
       charset: 'utf-8',
       viewport: 'width=device-width, initial-scale=1',
-      title: 'Brandsta | Something is forming.',
+      title: SEO_TITLE,
 
       htmlAttrs: {
         lang: 'en',
@@ -161,14 +174,14 @@ export default defineNuxtConfig({
       meta: [
         {
           name: 'description',
-          content: 'Something is forming. Every beginning carries a signal. Follow its journey.',
+          content: SEO_DESCRIPTION,
         },
         {
           name: 'robots',
           content: 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1',
         },
-        { name: 'author', content: 'Brandsta — https://brandsta.in' },
-        { name: 'application-name', content: 'Brandsta' },
+        { name: 'author', content: 'Brandsta Interactive — https://brandsta.in' },
+        { name: 'application-name', content: 'Brandsta Interactive' },
 
         // Official Brandsta Home Base Coordinates (Koduvayur, Palakkad, Kerala)
         { name: 'geo.region', content: 'IN-KL' },
@@ -176,11 +189,11 @@ export default defineNuxtConfig({
         { name: 'geo.position', content: '10.684769;76.650758' },
         { name: 'ICBM', content: '10.684769, 76.650758' },
 
-        // Formation Theme Hex (#02050e Preserved for This Branch)
-        { name: 'msapplication-TileColor', content: '#02050e' },
+        // Icon Tile Surface (#171718) & Seamless Browser Chrome (#02050e)
+        { name: 'msapplication-TileColor', content: '#171718' },
         { name: 'msapplication-TileImage', content: '/images/favicons/ms-icon-144x144.png' },
-        { name: 'theme-color', content: '#02050e' },
         { name: 'msapplication-config', content: '/browserconfig.xml' },
+        { name: 'theme-color', content: '#02050e' },
 
         // Mobile & PWA Capabilities
         { name: 'mobile-web-app-capable', content: 'yes' },
@@ -188,37 +201,43 @@ export default defineNuxtConfig({
         { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
         { name: 'apple-mobile-web-app-title', content: 'Brandsta' },
 
-        // Open Graph (1200x630 JPG)
+        // Open Graph (1200x630 JPG — /images/og/emerge.jpg)
         { property: 'og:type', content: 'website' },
         { property: 'og:locale', content: 'en_IN' },
         { property: 'og:site_name', content: 'Brandsta' },
-        { property: 'og:title', content: 'Brandsta | Something is forming.' },
-        {
-          property: 'og:description',
-          content: 'Something is forming. Every beginning carries a signal. Follow its journey.',
-        },
-        { property: 'og:image', content: 'https://brandsta.in/images/og/formation.jpg' },
-        { property: 'og:image:secure_url', content: 'https://brandsta.in/images/og/formation.jpg' },
+        { property: 'og:url', content: SITE_URL },
+        { property: 'og:title', content: OG_TITLE },
+        { property: 'og:description', content: OG_DESCRIPTION },
+        { property: 'og:image', content: OG_IMAGE_URL },
+        { property: 'og:image:secure_url', content: OG_IMAGE_URL },
         { property: 'og:image:width', content: '1200' },
         { property: 'og:image:height', content: '630' },
         { property: 'og:image:type', content: 'image/jpeg' },
-        { property: 'og:image:alt', content: 'Brandsta — Something is forming.' },
+        { property: 'og:image:alt', content: OG_IMAGE_ALT },
 
-        // Twitter / X Card
+        // X / Twitter Card (Matches Open Graph 1:1)
         { name: 'twitter:card', content: 'summary_large_image' },
-        { name: 'twitter:title', content: 'Brandsta | Something is forming.' },
-        {
-          name: 'twitter:description',
-          content: 'Something is forming. Every beginning carries a signal. Follow its journey.',
-        },
-        { name: 'twitter:image', content: 'https://brandsta.in/images/og/formation.jpg' },
-        { name: 'twitter:image:alt', content: 'Brandsta — Something is forming.' },
+        { name: 'twitter:title', content: OG_TITLE },
+        { name: 'twitter:description', content: OG_DESCRIPTION },
+        { name: 'twitter:image', content: OG_IMAGE_URL },
+        { name: 'twitter:image:alt', content: OG_IMAGE_ALT },
       ],
 
       link: [
-        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+        // 1. Lean Legacy .ico & Safari Tab Fallbacks (Strictly 16x16 & 32x32 — ~4KB)
+        { rel: 'icon', type: 'image/x-icon', sizes: '16x16 32x32', href: '/favicon.ico' },
+        { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/images/favicons/favicon-16x16.png' },
+        { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/images/favicons/favicon-32x32.png' },
 
-        // Apple Touch Icons (Formation Assets Untouched)
+        // 2. Live Adaptive Light/Dark Vector Tab Icon (Scoped to 16/32 so Googlebot >=48px picks Opaque #171718 PNGs)
+        { rel: 'icon', type: 'image/svg+xml', sizes: '16x16 32x32', href: '/favicon.svg' },
+
+        // 3. Google Search Opaque Padded Icons (#171718 Multiples of 48px)
+        { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/images/favicons/favicon-48x48.png' },
+        { rel: 'icon', type: 'image/png', sizes: '96x96', href: '/images/favicons/favicon-96x96.png' },
+        { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/images/favicons/android-icon-192x192.png' },
+
+        // 4. Apple Touch Icons (Opaque #171718)
         { rel: 'apple-touch-icon', sizes: '57x57', href: '/images/favicons/apple-icon-57x57.png' },
         { rel: 'apple-touch-icon', sizes: '60x60', href: '/images/favicons/apple-icon-60x60.png' },
         { rel: 'apple-touch-icon', sizes: '72x72', href: '/images/favicons/apple-icon-72x72.png' },
@@ -227,17 +246,11 @@ export default defineNuxtConfig({
         { rel: 'apple-touch-icon', sizes: '120x120', href: '/images/favicons/apple-icon-120x120.png' },
         { rel: 'apple-touch-icon', sizes: '144x144', href: '/images/favicons/apple-icon-144x144.png' },
         { rel: 'apple-touch-icon', sizes: '152x152', href: '/images/favicons/apple-icon-152x152.png' },
-        { rel: 'apple-touch-icon', sizes: '180x180', href: '/images/favicons/apple-icon-180x180.png' },
         { rel: 'apple-touch-icon', sizes: '167x167', href: '/images/favicons/apple-icon.png' },
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/images/favicons/apple-icon-180x180.png' },
         { rel: 'apple-touch-icon', sizes: '190x190', href: '/images/favicons/apple-icon-precomposed.png' },
 
-        // Standard Favicons (Formation Assets Untouched)
-        { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/images/favicons/favicon-16x16.png' },
-        { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/images/favicons/favicon-32x32.png' },
-        { rel: 'icon', type: 'image/png', sizes: '96x96', href: '/images/favicons/favicon-96x96.png' },
-        { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/images/favicons/android-icon-192x192.png' },
-
-        // Web Manifest
+        // 5. Web App Manifest
         { rel: 'manifest', crossorigin: 'use-credentials', href: '/manifest.json' },
       ],
     },

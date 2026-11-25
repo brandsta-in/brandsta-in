@@ -1,7 +1,9 @@
 <!-- app/components/ResonantFlowButton.vue -->
 <script setup lang="ts">
-import { ref, computed, useId, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, useId, onMounted, onBeforeUnmount } from 'vue'
 import { useNuxtApp, navigateTo } from '#imports'
+import { useLenis } from '~/composables/useLenis'
+import { LENIS_SCROLL_CONFIG } from '~/data/lenisConfig'
 import {
   BUTTON_VISUAL_TUNING,
   RESONANT_BUTTON_PHYSICS,
@@ -117,6 +119,7 @@ const emit = defineEmits<{
 
 const uid = useId()
 const nuxtApp = useNuxtApp()
+const { scrollTo } = useLenis()
 const rootEl = ref<HTMLElement | null>(null)
 
 const isHashLink = computed(() => Boolean(props.href && props.href.startsWith('#')))
@@ -901,27 +904,20 @@ function ensurePhysicsLoop() {
 function smoothScrollToHash(hash: string) {
   if (typeof window === 'undefined') return
 
-  const lenis =
-    (nuxtApp as Record<string, any>).$lenis ??
-    (window as unknown as Record<string, any>).__lenis
+  const scrollOpts = {
+    duration: LENIS_SCROLL_CONFIG.anchorDuration,
+    offset: LENIS_SCROLL_CONFIG.anchorOffset,
+  }
 
   if (hash === '#' || hash === '#top') {
-    if (lenis && typeof lenis.scrollTo === 'function') {
-      lenis.scrollTo(0)
-    } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
+    scrollTo(0, scrollOpts)
     return
   }
 
   const target = document.querySelector<HTMLElement>(hash)
   if (!target) return
 
-  if (lenis && typeof lenis.scrollTo === 'function') {
-    lenis.scrollTo(target)
-  } else {
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  scrollTo(target, scrollOpts)
 }
 
 function onPointerEnter() {
@@ -1040,6 +1036,15 @@ function triggerClickSequence(e: MouseEvent) {
 
   emit('action', e)
 }
+
+watch(
+  () => props.size,
+  () => {
+    nextTick(() => {
+      measureGeometry()
+    })
+  },
+)
 
 onMounted(() => {
   measureGeometry()

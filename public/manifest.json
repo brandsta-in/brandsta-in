@@ -1,10 +1,13 @@
 {
-  "name": "Brandsta | Something is forming.",
+  "id": "/",
+  "name": "Brandsta Interactive",
   "short_name": "Brandsta",
-  "description": "Something is forming. Every beginning carries a signal. Follow its journey.",
+  "description": "Brandsta is a creative studio that builds distinctive digital identities, interactive websites and custom tools, and helps brands get seen and grow.",
   "start_url": "/",
+  "scope": "/",
+  "lang": "en",
   "display": "standalone",
-  "background_color": "#02050e",
+  "background_color": "#171718",
   "theme_color": "#02050e",
   "orientation": "portrait-primary",
   "icons": [
@@ -19,13 +22,13 @@
       "type": "image/png"
     },
     {
-      "src": "/images/favicons/favicon-96x96.png",
-      "sizes": "96x96",
+      "src": "/images/favicons/favicon-48x48.png",
+      "sizes": "48x48",
       "type": "image/png"
     },
     {
-      "src": "/images/favicons/ms-icon-144x144.png",
-      "sizes": "144x144",
+      "src": "/images/favicons/favicon-96x96.png",
+      "sizes": "96x96",
       "type": "image/png"
     },
     {
@@ -40,7 +43,7 @@
       "purpose": "any"
     },
     {
-      "src": "/images/favicons/android-icon-192x192.png",
+      "src": "/images/favicons/android-icon-192x192-maskable.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
@@ -52,7 +55,7 @@
       "purpose": "any"
     },
     {
-      "src": "/images/favicons/android-icon-512x512.png",
+      "src": "/images/favicons/android-icon-512x512-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
