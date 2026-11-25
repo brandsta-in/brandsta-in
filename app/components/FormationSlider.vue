@@ -228,6 +228,7 @@ onUnmounted(() => {
               >
                 <span class="sr-only">{{ activeStage.lead }}</span>
                 <span
+                  v-if="activeStage.lead"
                   v-for="(word, wIdx) in splitWords(activeStage.lead)"
                   :key="`${activeStage.slug}-lead-${wIdx}`"
                   aria-hidden="true"
@@ -245,6 +246,7 @@ onUnmounted(() => {
               >
                 <span class="sr-only">{{ activeStage.caption }}</span>
                 <span
+                  v-if="activeStage.caption"
                   v-for="(word, wIdx) in splitWords(activeStage.caption)"
                   :key="`${activeStage.slug}-cap-${wIdx}`"
                   aria-hidden="true"
@@ -786,12 +788,6 @@ onUnmounted(() => {
     opacity: 0.98;
     transform: translate3d(0, -0.75px, 0);
     color: #fde08d;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .arrival-char-pulse {
-    animation: none !important;
   }
 }
 

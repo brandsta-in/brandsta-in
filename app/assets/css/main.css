@@ -3,6 +3,7 @@
 
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, Cambria, 'Times New Roman', serif;
 
   --color-brand-void: #000000;
   --color-brand-obsidian: #02050e;
@@ -13,6 +14,14 @@
   --color-brand-ice: #7cb4ff;
   --color-brand-frost: #cbe6ff;
   --color-brand-fire: #ff3b30;
+
+  --color-brand-gold-deep: #b45309;
+  --color-brand-gold: #f59e0b;
+  --color-brand-gold-bright: #fbbf24;
+  --color-brand-champagne: #fef08a;
+
+  --ease-brand-silk: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-brand-crest: cubic-bezier(0.19, 1, 0.22, 1);
 
   --breakpoint-2xs: 22.5rem;
   --breakpoint-xs: 30rem;
@@ -43,6 +52,14 @@
     overflow: hidden;
   }
 
+  .lenis [data-lenis-prevent] {
+    overscroll-behavior: contain;
+  }
+
+  .lenis.lenis-smooth iframe {
+    pointer-events: none;
+  }
+
   html,
   body,
   #__nuxt {
@@ -60,6 +77,227 @@
   ::selection {
     background-color: var(--color-brand-blue);
     color: #ffffff;
+  }
+}
+
+/* =========================================================================
+   BRANDSTA REUSABLE TYPOGRAPHY & METALLIC / FLUID GRADIENT UTILITIES
+   ========================================================================= */
+@utility brand-kicker {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.26em;
+  line-height: 1.2;
+}
+
+@utility brand-triad-label {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+@utility brand-accent-serif {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+}
+
+@utility text-gradient-titanium {
+  background-image: linear-gradient(180deg, #ffffff 0%, #f4f8ff 54%, #d2e3f8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility text-gradient-brand-blue {
+  background-image: linear-gradient(108deg, #3b9eff 0%, #1870ff 38%, #8ad4ff 74%, #1e6bff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility text-gradient-astral-gold {
+  background-image: linear-gradient(108deg, #fef08a 0%, #fbbf24 40%, #f59e0b 76%, #fde68a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* =========================================================================
+   GPU CHOREOGRAPHY REVEAL ENGINE (v-reveal-chars / v-reveal-words / v-reveal-stage)
+   Zero layout shift (0.000 CLS), SSR-safe pre-veil, 100% compositor transforms
+   ========================================================================= */
+@layer components {
+
+  /* Shared Horizontal Viewport Rail (Matches Flagship Hero Breakpoint Progression 1:1) */
+  .brand-shell {
+    --brand-shell-max-w: 90rem;
+    --brand-pad-x: 1.15rem;
+
+    width: 100%;
+    max-width: var(--brand-shell-max-w);
+    margin-inline: auto;
+    padding-left: max(var(--brand-pad-x), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--brand-pad-x), env(safe-area-inset-right, 0px));
+  }
+
+  @media (min-width: 360px) {
+    .brand-shell {
+      --brand-pad-x: 1.35rem;
+    }
+  }
+
+  @media (min-width: 480px) {
+    .brand-shell {
+      --brand-pad-x: 2rem;
+    }
+  }
+
+  @media (min-width: 640px) {
+    .brand-shell {
+      --brand-pad-x: 2.5rem;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .brand-shell {
+      --brand-pad-x: 3.25rem;
+    }
+  }
+
+  @media (min-width: 660px) and (max-width: 1023px) and (min-aspect-ratio: 10/11) {
+    .brand-shell {
+      --brand-pad-x: 2.25rem;
+    }
+  }
+
+  @media (max-width: 1023px) and (max-height: 540px) and (orientation: landscape) {
+    .brand-shell {
+      --brand-pad-x: 2rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .brand-shell {
+      --brand-pad-x: 3.75rem;
+    }
+  }
+
+  @media (min-width: 1280px) and (orientation: landscape) {
+    .brand-shell {
+      --brand-pad-x: 4.5rem;
+    }
+  }
+
+  @media (min-width: 1536px) and (max-width: 1536px) and (orientation: landscape) {
+    .brand-shell {
+      --brand-pad-x: 5rem;
+    }
+  }
+
+  @media (min-width: 1537px) and (orientation: landscape) {
+    .brand-shell {
+      --brand-shell-max-w: 106rem;
+      --brand-pad-x: 3.5rem;
+    }
+  }
+
+  [data-reveal-ready="0"] {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  [data-reveal-active="0"] {
+    pointer-events: none;
+  }
+
+  .reveal-word {
+    display: inline-block;
+    white-space: nowrap;
+  }
+
+  /* 1. Letter-by-Letter Harmonic Crest (.reveal-char — solid currentColor by default) */
+  .reveal-char {
+    display: inline-block;
+    color: inherit;
+    opacity: 0;
+    transform: translate3d(0, var(--reveal-rise, 0.46em), 0) scale(0.965);
+    transform-origin: 50% 85%;
+    backface-visibility: hidden;
+    will-change: transform, opacity;
+    transition:
+      opacity var(--reveal-dur, 640ms) var(--ease-brand-crest) var(--char-delay, 0ms),
+      transform var(--reveal-dur, 640ms) var(--ease-brand-crest) var(--char-delay, 0ms);
+  }
+
+  [data-reveal-active="1"] .reveal-char {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  /* Continuous word-wide gradient mapping across split italic letters (zero swash clip) */
+  .reveal-char--gradient {
+    padding-inline: 0.1em;
+    margin-inline: -0.1em;
+    padding-block: 0.1em;
+    margin-block: -0.1em;
+    background-size: var(--char-bg-size, 100% 100%);
+    background-position: var(--char-bg-pos, 50% 50%);
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .reveal-char--gold {
+    background-image: linear-gradient(105deg, #fef08a 0%, #fbbf24 38%, #f59e0b 74%, #fde68a 100%);
+    filter: drop-shadow(0 0 18px rgba(245, 158, 11, 0.24));
+  }
+
+  .reveal-char--blue {
+    background-image: linear-gradient(105deg, #7cc4ff 0%, #1e6bff 42%, #0048ff 76%, #93d5ff 100%);
+    filter: drop-shadow(0 0 20px rgba(0, 72, 255, 0.32));
+  }
+
+  .reveal-char--titanium {
+    background-image: linear-gradient(180deg, #ffffff 0%, #f1f7ff 56%, #cfe0f6 100%);
+  }
+
+  /* 2. Poetic Word-by-Word Silk Glide (.reveal-word-unit) */
+  .reveal-word-unit {
+    display: inline-block;
+    white-space: nowrap;
+    color: inherit;
+    opacity: 0;
+    transform: translate3d(0, var(--reveal-rise, 0.52em), 0);
+    backface-visibility: hidden;
+    will-change: transform, opacity;
+    transition:
+      opacity var(--reveal-dur, 640ms) var(--ease-brand-silk) var(--word-delay, 0ms),
+      transform var(--reveal-dur, 640ms) var(--ease-brand-silk) var(--word-delay, 0ms);
+  }
+
+  [data-reveal-active="1"] .reveal-word-unit {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  /* 3. Stage / Block / Button Emergence ([data-reveal-stage]) */
+  [data-reveal-stage] {
+    opacity: 0;
+    transform: translate3d(0, var(--stage-rise, 16px), 0) scale(var(--stage-scale, 0.985));
+    backface-visibility: hidden;
+    will-change: transform, opacity;
+    transition:
+      opacity var(--stage-dur, 720ms) var(--ease-brand-silk) var(--stage-delay, 0ms),
+      transform var(--stage-dur, 720ms) var(--ease-brand-silk) var(--stage-delay, 0ms);
+  }
+
+  [data-reveal-stage][data-reveal-active="1"] {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
